@@ -180,43 +180,71 @@ async function fillPdfWithData(formData, signatureData) {
   
   // Получаем размеры страницы
   const { width, height } = firstPage.getSize();
+  console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
   
   // Добавляем текстовые данные на страницу
   const fontSize = 12;
   const textOptions = { size: fontSize };
   
+  // Определяем координаты полей на основе вашего PDF-шаблона
+  // Эти значения могут потребовать корректировки в зависимости от вашего шаблона
+  const fieldPositions = {
+    fullName: { x: 200, y: height - 150 },
+    birthSurname: { x: 200, y: height - 180 },
+    birthDate: { x: 200, y: height - 210 },
+    hometown: { x: 200, y: height - 240 },
+    insuranceAddress: { x: 200, y: height - 270 },
+    email: { x: 200, y: height - 300 },
+    phone: { x: 200, y: height - 330 },
+    signature: { x: 100, y: 100, width: 200, height: 80 } // Подпись внизу документа
+  };
+  
+  console.log('Заполнение полей PDF данными из формы');
+  
   // Заполняем поля данными
   if (formData.fullName) {
-    firstPage.drawText(formData.fullName, { x: 200, y: height - 150, ...textOptions });
+    firstPage.drawText(formData.fullName, { x: fieldPositions.fullName.x, y: fieldPositions.fullName.y, ...textOptions });
+    console.log(`Заполнено поле fullName: ${formData.fullName}`);
   }
   
   if (formData.birthSurname) {
-    firstPage.drawText(formData.birthSurname, { x: 200, y: height - 180, ...textOptions });
+    firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
+    console.log(`Заполнено поле birthSurname: ${formData.birthSurname}`);
   }
   
   if (formData.birthDate) {
-    firstPage.drawText(formData.birthDate, { x: 200, y: height - 210, ...textOptions });
+    firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
+    console.log(`Заполнено поле birthDate: ${formData.birthDate}`);
   }
   
   if (formData.hometown) {
-    firstPage.drawText(formData.hometown, { x: 200, y: height - 240, ...textOptions });
+    firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
+    console.log(`Заполнено поле hometown: ${formData.hometown}`);
   }
   
-  if (formData.insuranceAddress) {
-    firstPage.drawText(formData.insuranceAddress, { x: 200, y: height - 270, ...textOptions });
+  // Заполняем адрес только если он указан
+  if (formData.insuranceAddress && formData.insuranceAddress.trim() !== '') {
+    firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.insuranceAddress.x, y: fieldPositions.insuranceAddress.y, ...textOptions });
+    console.log(`Заполнено поле insuranceAddress: ${formData.insuranceAddress}`);
+  } else {
+    console.log('Поле insuranceAddress не заполнено, так как оно пустое');
   }
   
   if (formData.email) {
-    firstPage.drawText(formData.email, { x: 200, y: height - 300, ...textOptions });
+    firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
+    console.log(`Заполнено поле email: ${formData.email}`);
   }
   
   if (formData.phone) {
-    firstPage.drawText(formData.phone, { x: 200, y: height - 330, ...textOptions });
+    firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
+    console.log(`Заполнено поле phone: ${formData.phone}`);
   }
   
   // Добавляем подпись, если она есть
   if (signatureData) {
     try {
+      console.log('Добавление подписи в PDF');
+      
       // Удаляем префикс data:image/png;base64, если он есть
       const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
       
@@ -224,21 +252,22 @@ async function fillPdfWithData(formData, signatureData) {
       const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
       const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
       
-      // Добавляем изображение подписи в PDF
-      const signatureWidth = 200;
-      const signatureHeight = 80;
+      // Добавляем изображение подписи в PDF в нижней части документа
       firstPage.drawImage(signatureImage, {
-        x: 100,
-        y: height - 480, // Позиция подписи
-        width: signatureWidth,
-        height: signatureHeight,
+        x: fieldPositions.signature.x,
+        y: fieldPositions.signature.y,
+        width: fieldPositions.signature.width,
+        height: fieldPositions.signature.height,
       });
+      
+      console.log('Подпись успешно добавлена в PDF');
     } catch (error) {
       console.warn(`Не удалось добавить подпись: ${error.message}`);
     }
   }
   
   // Сохраняем PDF
+  console.log('Сохранение заполненного PDF');
   return await pdfDoc.save();
 }
 
