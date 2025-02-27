@@ -3,7 +3,7 @@ require('dotenv').config(); // Загружаем переменные окру�
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Telegraf } = require('telegraf');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -12,7 +12,7 @@ const fs = require('fs');
 const config = {
   botToken: process.env.BOT_TOKEN || '7557471395:AAFNHZlMynXghYKmr16XWOWVfUpgAqP_Sh8', // Токен Telegram бота
   adminChatId: process.env.ADMIN_CHAT_ID || '6085514487', // ID чата администратора
-  templatePdfPath: process.env.PDF_TEMPLATE_PATH || path.join(__dirname, 'BIG_Vermittlervollmacht.pdf'), // Путь к шаблону PDF
+  templatePdfPath: process.env.PDF_TEMPLATE_PATH || path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf'), // Путь к шаблону PDF
   webappUrl: process.env.WEBAPP_URL || 'https://versisch-fda933ace75b.herokuapp.com', // URL веб-приложения
 };
 
@@ -153,7 +153,20 @@ async function fillPdfWithData(formData, signatureData) {
     
     // Проверяем существование PDF шаблона
     if (!fs.existsSync(config.templatePdfPath)) {
-      throw new Error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
+      console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
+      console.log('Попытка создать временный базовый шаблон...');
+      
+      // Создаем временный базовый шаблон
+      const tempPath = path.join(__dirname, 'temp_template.pdf');
+      const created = await createBasicPdfTemplate(tempPath);
+      
+      if (created) {
+        console.log(`Базовый PDF-шаблон успешно создан по пути: ${tempPath}`);
+        config.templatePdfPath = tempPath;
+        console.log(`Используем временный шаблон: ${config.templatePdfPath}`);
+      } else {
+        throw new Error(`Не удалось создать базовый PDF-шаблон для заполнения данными`);
+      }
     }
     
     console.log('Шаблон PDF найден, приступаем к заполнению');
@@ -183,14 +196,14 @@ async function fillPdfWithData(formData, signatureData) {
       // Определяем координаты полей для Vermittlervollmacht PDF
       // Эти координаты нужно настроить под реальный PDF
       const fieldPositions = {
-        fullName: { x: 120, y: height - 250 },      // Позиция для полного имени
-        birthSurname: { x: 120, y: height - 280 },  // Позиция для фамилии при рождении
-        birthDate: { x: 350, y: height - 250 },     // Позиция для даты рождения
-        hometown: { x: 350, y: height - 280 },      // Позиция для родного города
-        insuranceAddress: { x: 120, y: height - 310 }, // Позиция для адреса
-        email: { x: 120, y: height - 340 },         // Позиция для email
-        phone: { x: 350, y: height - 340 },         // Позиция для телефона
-        signature: { x: 120, y: height - 620, width: 200, height: 80 } // Позиция для подписи над "Unterschrift des Versicherten"
+        fullName: { x: 120, y: height - 150 },      // Позиция для полного имени
+        birthSurname: { x: 120, y: height - 180 },  // Позиция для фамилии при рождении
+        birthDate: { x: 350, y: height - 210 },     // Позиция для даты рождения
+        hometown: { x: 350, y: height - 240 },      // Позиция для родного города
+        insuranceAddress: { x: 120, y: height - 270 }, // Позиция для адреса
+        email: { x: 120, y: height - 300 },         // Позиция для email
+        phone: { x: 350, y: height - 330 },         // Позиция для телефона
+        signature: { x: 120, y: height - 580, width: 200, height: 60 } // Позиция для подписи над "Unterschrift des Versicherten"
       };
       
       console.log('Заполнение полей PDF данными из формы');
@@ -356,11 +369,140 @@ app.get('/api/get-template-pdf', (req, res) => {
   }
 });
 
+// Функция для создания базового PDF-шаблона, если основной не найден
+async function createBasicPdfTemplate(outputPath) {
+  try {
+    console.log(`Создаю базовый PDF-шаблон по пути: ${outputPath}`);
+    
+    // Создаем новый PDF документ
+    const pdfDoc = await PDFDocument.create();
+    
+    // Добавляем страницу формата A4
+    const page = pdfDoc.addPage([595, 842]);
+    
+    // Получаем размеры страницы
+    const { width, height } = page.getSize();
+    
+    // Загружаем стандартный шрифт
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    
+    // Добавляем заголовок
+    page.drawText('Vermittlervollmacht', {
+      x: 50,
+      y: height - 50,
+      size: 24,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
+    // Добавляем поля для данных
+    const fieldLabels = [
+      { label: 'Name, Vorname:', y: height - 150 },
+      { label: 'Geburtsname:', y: height - 180 },
+      { label: 'Geburtsdatum:', y: height - 210 },
+      { label: 'Geburtsort:', y: height - 240 },
+      { label: 'Anschrift:', y: height - 270 },
+      { label: 'E-Mail:', y: height - 300 },
+      { label: 'Telefon:', y: height - 330 }
+    ];
+    
+    // Рисуем метки полей
+    fieldLabels.forEach(field => {
+      page.drawText(field.label, {
+        x: 50,
+        y: field.y,
+        size: 12,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+    });
+    
+    // Добавляем место для подписи
+    page.drawText('Unterschrift des Versicherten:', {
+      x: 50,
+      y: height - 550,
+      size: 12,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
+    // Рисуем линию для подписи
+    page.drawLine({
+      start: { x: 50, y: height - 580 },
+      end: { x: 250, y: height - 580 },
+      thickness: 1,
+      color: rgb(0, 0, 0),
+    });
+    
+    // Сохраняем PDF
+    const pdfBytes = await pdfDoc.save();
+    
+    // Создаем директорию, если она не существует
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    // Записываем файл
+    fs.writeFileSync(outputPath, pdfBytes);
+    console.log(`Базовый PDF-шаблон успешно создан по пути: ${outputPath}`);
+    return true;
+  } catch (error) {
+    console.error(`Ошибка при создании базового PDF-шаблона: ${error.message}`);
+    return false;
+  }
+}
+
 // Запускаем сервер
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`Сервер запущен на порту ${PORT}`);
-  console.log(`Путь к шаблону PDF: ${config.templatePdfPath}`);
+  console.log(`Исходный путь к шаблону PDF: ${config.templatePdfPath}`);
+  console.log(`Абсолютный путь к директории приложения: ${__dirname}`);
+  
+  // Проверка различных возможных мест расположения файла
+  const possiblePaths = [
+    config.templatePdfPath,
+    path.join(__dirname, 'BIG_Vermittlervollmacht.pdf'),
+    path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf'),
+    path.join(__dirname, '..', 'public', 'BIG_Vermittlervollmacht.pdf'),
+    path.join(__dirname, 'public', 'BIG_Vermittlervollmacht.pdf'),
+    './BIG_Vermittlervollmacht.pdf',
+    '../BIG_Vermittlervollmacht.pdf'
+  ];
+  
+  console.log('Проверка возможных путей к PDF файлу:');
+  let pdfFound = false;
+  
+  for (const pdfPath of possiblePaths) {
+    const exists = fs.existsSync(pdfPath);
+    console.log(`- ${pdfPath}: ${exists ? 'СУЩЕСТВУЕТ' : 'НЕ СУЩЕСТВУЕТ'}`);
+    
+    if (exists && !pdfFound) {
+      console.log(`PDF найден! Обновляем путь к шаблону: ${pdfPath}`);
+      config.templatePdfPath = pdfPath;
+      pdfFound = true;
+    }
+  }
+  
+  if (pdfFound) {
+    console.log(`Итоговый путь к шаблону PDF: ${config.templatePdfPath}`);
+  } else {
+    console.error('PDF не найден ни по одному из проверенных путей!');
+    console.log('Создаем базовый PDF-шаблон...');
+    
+    // Создаем временный базовый шаблон
+    const tempPath = path.join(__dirname, 'temp_template.pdf');
+    const created = await createBasicPdfTemplate(tempPath);
+    
+    if (created) {
+      console.log(`Базовый PDF-шаблон успешно создан по пути: ${tempPath}`);
+      config.templatePdfPath = tempPath;
+      console.log(`Используем временный шаблон: ${config.templatePdfPath}`);
+    } else {
+      console.error('Не удалось создать базовый PDF-шаблон!');
+    }
+  }
   
   // Проверяем существование директорий
   if (!fs.existsSync(filledFormsDir)) {
@@ -372,19 +514,6 @@ app.listen(PORT, async () => {
   if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
     console.log(`Создана директория для загрузок: ${uploadDir}`);
-  }
-  
-  // Проверяем существование шаблона PDF
-  try {
-    const templateExists = fs.existsSync(config.templatePdfPath);
-    if (templateExists) {
-      console.log(`Шаблон PDF найден по пути: ${config.templatePdfPath}`);
-    } else {
-      console.error(`ВНИМАНИЕ: Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
-      console.error(`Убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в корневую директорию проекта`);
-    }
-  } catch (error) {
-    console.error(`Ошибка при проверке шаблона PDF: ${error.message}`);
   }
 });
 
