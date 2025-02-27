@@ -55,10 +55,20 @@ const bot = new Telegraf(config.botToken);
 
 // Обработчик команды /start
 bot.start((ctx) => {
+  // Сохраняем информацию о пользователе, который начал общение с ботом
+  const userId = ctx.from.id;
+  const userName = ctx.from.username || '';
+  const firstName = ctx.from.first_name || '';
+  const lastName = ctx.from.last_name || '';
+  
+  console.log(`Пользователь начал взаимодействие с ботом: ID ${userId}, username: @${userName}, имя: ${firstName} ${lastName}`);
+  
   ctx.reply('Добро пожаловать! Для заполнения формы нажмите на кнопку ниже:', {
     reply_markup: {
       inline_keyboard: [
-        [{ text: 'Заполнить форму', web_app: { url: config.webappUrl } }]
+        [{ text: 'Заполнить форму', web_app: { 
+          url: `${config.webappUrl}?userId=${userId}&username=${userName}&name=${encodeURIComponent(firstName + ' ' + lastName)}` 
+        } }]
       ]
     }
   });
@@ -76,7 +86,30 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
     const formData = JSON.parse(req.body.formData);
     const signatureData = req.body.signature;
     
+    // Получаем параметры пользователя из запроса
+    // Сначала проверяем параметры запроса
+    if (req.query) {
+      if (req.query.username) {
+        formData.telegramUsername = req.query.username;
+      }
+      if (req.query.userId) {
+        formData.telegramChatId = req.query.userId;
+      }
+    }
+    
+    // Также проверяем параметры из тела запроса
+    if (req.body.username) {
+      formData.telegramUsername = req.body.username;
+    }
+    if (req.body.telegramChatId) {
+      formData.telegramChatId = req.body.telegramChatId;
+    }
+    
     console.log('Данные формы:', formData);
+    console.log('Данные Telegram:', { 
+      username: formData.telegramUsername || 'не указан', 
+      chatId: formData.telegramChatId || 'не указан' 
+    });
     
     // Путь к загруженной фотографии
     const photoPath = req.file ? req.file.path : null;
@@ -85,8 +118,9 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
     // Заполняем PDF данными пользователя
     const filledPdfBuffer = await fillPdfWithData(formData, signatureData);
     
-    // Сохраняем заполненный PDF
-    const pdfPath = `${filledFormsDir}/${Date.now()}_filled.pdf`;
+    // Сохраняем заполненный PDF с расширением .pdf
+    const pdfFileName = `${Date.now()}_filled.pdf`;
+    const pdfPath = `${filledFormsDir}/${pdfFileName}`;
     fs.writeFileSync(pdfPath, filledPdfBuffer);
     console.log('PDF сохранен по пути:', pdfPath);
     
@@ -133,8 +167,11 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
           await bot.telegram.sendPhoto(userChatId, { source: fs.createReadStream(photoPath) });
         }
         
-        // Отправляем заполненный PDF
-        await bot.telegram.sendDocument(userChatId, { source: fs.createReadStream(pdfPath) });
+        // Отправляем заполненный PDF с явным указанием типа документа
+        await bot.telegram.sendDocument(userChatId, { 
+          source: fs.createReadStream(pdfPath),
+          filename: pdfFileName 
+        });
         
         console.log(`Документ успешно отправлен пользователю в чат: ${userChatId}`);
       } catch (chatError) {
@@ -150,7 +187,7 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
   }
 });
 
-// Функция для заполнения PDF данными
+// Функция для заполнения PDF данными - используем заполнение полей формы вместо наложения текста
 async function fillPdfWithData(formData, signatureData) {
   try {
     console.log('Начало заполнения PDF данными');
@@ -194,17 +231,21 @@ async function fillPdfWithData(formData, signatureData) {
       const { width, height } = firstPage.getSize();
       console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
       
-      // Добавляем текстовые данные на страницу
+      // Добавляем текстовые данные на страницу с точными координатами из примера
+      // Используем аккуратное наложение текста вместо полей формы, так как PDF-lib не поддерживает
+      // манипуляцию существующими полями формы в некоторых форматах PDF
       const fontSize = 11;
-      const textOptions = { size: fontSize };
+      const textOptions = { 
+        size: fontSize,
+        color: rgb(0, 0, 0)
+      };
       
-      // Определяем координаты полей для Vermittlervollmacht PDF
-      // Обновленные координаты на основе изображения PDF
+      // Определяем координаты полей для PDF на основе примера
       const fieldPositions = {
-        fullName: { x: 123, y: height - 183 },      // Имя Фамилия в секции "Persönliche Angaben des Versicherten"
+        fullName: { x: 123, y: height - 183 },      // Имя Фамилия
         birthSurname: { x: 123, y: height - 203 },  // Фамилия при рождении
         birthDate: { x: 266, y: height - 183 },     // Дата рождения
-        hometown: { x: 307, y: height - 203 },      // Город рождения
+        hometown: { x: 307, y: height - 203 },      // Место рождения
         insuranceAddress: { x: 123, y: height - 225 }, // Адрес
         email: { x: 123, y: height - 265 },         // Email
         phone: { x: 307, y: height - 265 },         // Телефон
@@ -252,7 +293,7 @@ async function fillPdfWithData(formData, signatureData) {
         console.log(`Заполнено поле phone: ${formData.phone}`);
       }
       
-      // Добавляем подпись, если она есть
+      // Добавляем подпись, если она есть (только изображение, без дублирования соглашения)
       if (signatureData) {
         try {
           console.log('Добавление подписи в PDF');
@@ -265,7 +306,7 @@ async function fillPdfWithData(formData, signatureData) {
           const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
           const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
           
-          // Добавляем изображение подписи в PDF
+          // Добавляем только изображение подписи без дублирования соглашения
           firstPage.drawImage(signatureImage, {
             x: fieldPositions.signature.x,
             y: fieldPositions.signature.y,
@@ -279,9 +320,10 @@ async function fillPdfWithData(formData, signatureData) {
         }
       }
       
-      // Сохраняем PDF
+      // Сохраняем PDF с явными параметрами
       console.log('Сохранение заполненного PDF');
-      return await pdfDoc.save();
+      const pdfBuffer = await pdfDoc.save();
+      return pdfBuffer;
     } catch (pdfError) {
       console.error(`Ошибка при обработке PDF: ${pdfError.message}`);
       throw new Error(`Ошибка при работе с PDF: ${pdfError.message}`);
@@ -297,15 +339,27 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
   try {
     console.log('Отправка данных администратору:', config.adminChatId);
     
-    // Получаем имя и фамилию пользователя
+    // Получаем имя и фамилию пользователя и имя пользователя Telegram
     let userName = formData.fullName || 'Пользователь';
+    let telegramUsername = formData.telegramUsername || '';
+
+    // Формируем ссылку на пользователя в формате имя(имя клиента) с ссылкой на Telegram
+    // Используем реальное имя клиента вместо шаблонного текста
+    let userLinkText = `${userName}`;
     let userLink = '';
     
-    // Формируем ссылку на пользователя, если есть ID чата
-    if (formData.telegramChatId) {
-      userLink = `[${userName}](tg://user?id=${formData.telegramChatId})`;
+    if (telegramUsername && telegramUsername.trim() !== '') {
+      // Убираем символ @ из имени пользователя, если он есть
+      telegramUsername = telegramUsername.replace(/^@/, '');
+      userLink = `[${userLinkText}](https://t.me/${telegramUsername})`;
+      
+      // Отдельно добавляем username после основной ссылки
+      userLink += ` - @${telegramUsername} (https://t.me/${telegramUsername})`;
+    } else if (formData.telegramChatId) {
+      // Если нет имени пользователя, но есть ID чата, используем его
+      userLink = `[${userLinkText}](tg://user?id=${formData.telegramChatId})`;
     } else {
-      userLink = userName;
+      userLink = userLinkText;
     }
     
     // Формируем сообщение с данными для администратора
@@ -322,12 +376,13 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
       maritalStatus: 'Семейное положение',
       email: 'Email',
       phone: 'Телефон',
-      telegramChatId: 'ID чата Telegram'
+      telegramChatId: 'ID чата Telegram',
+      telegramUsername: 'Имя пользователя Telegram'
     };
     
     // Добавляем все данные формы с форматированием для копирования
     Object.keys(formData).forEach(key => {
-      if (formData[key]) {
+      if (formData[key] && key !== 'telegramUsername') { // Имя пользователя Telegram уже добавили в ссылку
         const fieldName = fieldNames[key] || key;
         adminMessage += `${fieldName}: \`${formData[key]}\`\n`;
       }
@@ -342,10 +397,13 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
     // Отправляем сообщение с данными в формате Markdown для возможности копирования
     await bot.telegram.sendMessage(config.adminChatId, adminMessage, { parse_mode: 'Markdown' });
     
-    // Отправляем заполненный PDF последним
+    // Отправляем заполненный PDF последним с явным указанием имени файла
     if (fs.existsSync(pdfPath)) {
       console.log('Отправка PDF администратору');
-      await bot.telegram.sendDocument(config.adminChatId, { source: fs.createReadStream(pdfPath) });
+      await bot.telegram.sendDocument(config.adminChatId, { 
+        source: fs.createReadStream(pdfPath),
+        filename: path.basename(pdfPath)
+      });
     }
     
     console.log('Данные успешно отправлены администратору');
@@ -406,6 +464,24 @@ async function createBasicPdfTemplate(outputPath) {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     
+    // Добавляем логотип BIG в правый верхний угол (заглушка - синий прямоугольник)
+    page.drawRectangle({
+      x: width - 100,
+      y: height - 80,
+      width: 80,
+      height: 60,
+      color: rgb(0, 0, 0.8),
+    });
+    
+    // Добавляем текст "BIG" внутри логотипа
+    page.drawText("BIG", {
+      x: width - 80,
+      y: height - 50,
+      size: 24,
+      font: boldFont,
+      color: rgb(1, 1, 1),
+    });
+    
     // Добавляем заголовок
     page.drawText('Vollmacht für Vertriebspartner §34d GewO, zurück an die BIG', {
       x: 30,
@@ -415,24 +491,83 @@ async function createBasicPdfTemplate(outputPath) {
       color: rgb(0, 0, 0),
     });
     
+    // Добавляем адрес компании
+    page.drawText('BIG direkt gesund', {
+      x: 30,
+      y: height - 100,
+      size: 9,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
+    page.drawText('Rheinische Straße 1', {
+      x: 30,
+      y: height - 110,
+      size: 9,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
+    page.drawText('44137 Dortmund', {
+      x: 30,
+      y: height - 120,
+      size: 9,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
+    // Добавляем дату в правой части
+    const today = new Date();
+    const formattedDate = today.toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).replace(/\//g, '.');
+    
+    page.drawText(formattedDate, {
+      x: width - 100,
+      y: height - 150,
+      size: 11,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
     // Добавляем разделы формы
     page.drawText('Persönliche Angaben des Versicherten:', {
       x: 30,
-      y: height - 150,
+      y: height - 170,
       size: 12,
       font: boldFont,
       color: rgb(0, 0, 0),
     });
     
+    // Добавляем синий цветной блок для заголовка
+    page.drawRectangle({
+      x: 30,
+      y: height - 175,
+      width: width - 60,
+      height: 20,
+      color: rgb(0.1, 0.3, 0.6),
+    });
+    
+    // Добавляем текст заголовка на синем фоне
+    page.drawText('Persönliche Angaben des Versicherten:', {
+      x: 35,
+      y: height - 170,
+      size: 12,
+      font: boldFont,
+      color: rgb(1, 1, 1),
+    });
+    
     // Добавляем поля для данных
     const fieldLabels = [
-      { label: 'Name, Vorname:', x: 30, y: height - 180 },
-      { label: 'Geburtsdatum:', x: 230, y: height - 180 },
-      { label: 'Geburtsname:', x: 30, y: height - 200 },
-      { label: 'Geburtsort:', x: 230, y: height - 200 },
-      { label: 'Anschrift:', x: 30, y: height - 220 },
-      { label: 'E-Mail:', x: 30, y: height - 260 },
-      { label: 'Telefon:', x: 230, y: height - 260 }
+      { label: 'Name, Vorname:', x: 30, y: height - 195 },
+      { label: 'Geburtsdatum:', x: 230, y: height - 195 },
+      { label: 'Geburtsname:', x: 30, y: height - 215 },
+      { label: 'Geburtsort:', x: 230, y: height - 215 },
+      { label: 'Anschrift:', x: 30, y: height - 235 },
+      { label: 'E-Mail:', x: 30, y: height - 275 },
+      { label: 'Telefon:', x: 230, y: height - 275 }
     ];
     
     // Рисуем метки полей
@@ -447,18 +582,104 @@ async function createBasicPdfTemplate(outputPath) {
     });
     
     // Добавляем раздел для данных представителя
-    page.drawText('Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO:', {
+    // Синий блок для заголовка
+    page.drawRectangle({
       x: 30,
+      y: height - 305,
+      width: width - 60,
+      height: 20,
+      color: rgb(0.1, 0.3, 0.6),
+    });
+    
+    // Текст заголовка на синем фоне
+    page.drawText('Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO:', {
+      x: 35,
       y: height - 300,
       size: 12,
       font: boldFont,
-      color: rgb(0, 0, 0),
+      color: rgb(1, 1, 1),
     });
+    
+    // Добавляем поля для данных представителя
+    const agentFieldLabels = [
+      { label: 'Name:', x: 30, y: height - 325 },
+      { label: 'Vorname:', x: 230, y: height - 325 },
+      { label: 'Vermittlernummer:', x: 30, y: height - 345 },
+      { label: 'Straße:', x: 30, y: height - 365 },
+      { label: 'PLZ:', x: 30, y: height - 385 },
+      { label: 'Ort:', x: 100, y: height - 385 }
+    ];
+    
+    // Рисуем метки полей для представителя
+    agentFieldLabels.forEach(field => {
+      page.drawText(field.label, {
+        x: field.x,
+        y: field.y,
+        size: 11,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+    });
+    
+    // Добавляем блок для соглашения
+    // Синий блок для заголовка
+    page.drawRectangle({
+      x: 30,
+      y: height - 415,
+      width: width - 60,
+      height: 20,
+      color: rgb(0.1, 0.3, 0.6),
+    });
+    
+    // Текст заголовка на синем фоне
+    page.drawText('Bevollmächtigung:', {
+      x: 35,
+      y: height - 410,
+      size: 12,
+      font: boldFont,
+      color: rgb(1, 1, 1),
+    });
+    
+    // Текст соглашения (только один раз)
+    const agreementText = 'Hiermit bevollmächtige ich den vorbenannten Vertriebspartner, meine Interessen gegenüber der BIG direkt gesund zu vertreten. Dies umfasst auch die Entgegennahme aller Korrespondenz. Die Bevollmächtigung gilt bis auf Widerruf.';
+    
+    // Разбиваем текст соглашения на несколько строк для лучшей читаемости
+    const words = agreementText.split(' ');
+    let line = '';
+    let yPos = height - 440;
+    
+    for (let i = 0; i < words.length; i++) {
+      const testLine = line + words[i] + ' ';
+      if (testLine.length * 5 > width - 80) { // примерно оцениваем ширину текста
+        page.drawText(line, {
+          x: 35,
+          y: yPos,
+          size: 10,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+        line = words[i] + ' ';
+        yPos -= 15;
+      } else {
+        line = testLine;
+      }
+    }
+    
+    // Добавляем последнюю строку, если она осталась
+    if (line.trim().length > 0) {
+      page.drawText(line, {
+        x: 35,
+        y: yPos,
+        size: 10,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+    }
     
     // Добавляем место для подписи
     page.drawText('Unterschrift des Versicherten:', {
       x: 30,
-      y: height - 380,
+      y: height - 480,
       size: 11,
       font: font,
       color: rgb(0, 0, 0),
@@ -466,9 +687,28 @@ async function createBasicPdfTemplate(outputPath) {
     
     // Рисуем линию для подписи
     page.drawLine({
-      start: { x: 30, y: height - 420 },
-      end: { x: 200, y: height - 420 },
+      start: { x: 30, y: height - 500 },
+      end: { x: 200, y: height - 500 },
       thickness: 1,
+      color: rgb(0, 0, 0),
+    });
+    
+    // Добавляем нижний колонтитул с контактной информацией
+    const footerY = 40;
+    
+    page.drawText('BIG direkt gesund • Rheinische Straße 1 • 44137 Dortmund', {
+      x: 30,
+      y: footerY,
+      size: 8,
+      font: font,
+      color: rgb(0, 0, 0),
+    });
+    
+    page.drawText('www.big-direkt.de', {
+      x: width - 100,
+      y: footerY,
+      size: 8,
+      font: font,
       color: rgb(0, 0, 0),
     });
     
