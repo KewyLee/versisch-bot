@@ -113,6 +113,21 @@ button:hover {
     justify-content: center;
 }
 
+/* Стили для текста согласия */
+.consent-text {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.consent-text p {
+    margin: 0;
+}
+
 /* Стили для секции подписи */
 .signature-container {
     margin-top: 20px;

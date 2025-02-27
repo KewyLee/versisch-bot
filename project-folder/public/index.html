@@ -39,8 +39,9 @@
             </div>
             
             <div class="form-group">
-                <label for="birthDate">Дата рождения*</label>
-                <input type="date" id="birthDate" name="birthDate" required>
+                <label for="birthDate">Дата рождения (ДД.ММ.ГГГГ)*</label>
+                <input type="text" id="birthDate" name="birthDate" placeholder="01.01.2001" required>
+                <div class="error-message" id="birthDateError"></div>
             </div>
             
             <div class="form-group">
@@ -91,6 +92,11 @@
         <!-- Секция для отображения PDF и подписи -->
         <div id="pdfSection" class="hidden">
             <h2>Подтверждение документа</h2>
+            
+            <div class="consent-text">
+                <p>Подписывая этот документ вы соглашаетесь на то, что фирмы Svechynskyy может перенимать вашу кореспонденции от компании BIG direct gesund с целью последующей передачи её вам</p>
+            </div>
+            
             <div id="pdfViewer"></div>
             
             <div class="signature-container">

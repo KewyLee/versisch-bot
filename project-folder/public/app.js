@@ -17,6 +17,8 @@ const photoPreview = document.getElementById('photoPreview');
 const signatureCanvas = document.getElementById('signatureCanvas');
 const clearSignatureBtn = document.getElementById('clearSignature');
 const submitSignatureBtn = document.getElementById('submitSignature');
+const birthDateInput = document.getElementById('birthDate');
+const insuranceAddressInput = document.getElementById('insuranceAddress');
 
 // Функция для проверки латинских символов
 function isLatin(text) {
@@ -32,6 +34,103 @@ function isValidEmail(email) {
 function isValidPhone(phone) {
     return /^\+?[0-9\s\-\(\)]{10,20}$/.test(phone);
 }
+
+// Функция для валидации даты в формате ДД.ММ.ГГГГ
+function isValidDate(dateStr) {
+    if (!/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) {
+        return false;
+    }
+    
+    const parts = dateStr.split('.');
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    
+    const date = new Date(year, month, day);
+    
+    return date.getDate() === day && 
+           date.getMonth() === month && 
+           date.getFullYear() === year;
+}
+
+// Форматирование даты рождения
+birthDateInput.addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, ''); // Удаляем все нецифровые символы
+    
+    if (value.length > 0) {
+        // Форматируем как ДД.ММ.ГГГГ
+        if (value.length <= 2) {
+            // Только день
+            birthDateInput.value = value;
+        } else if (value.length <= 4) {
+            // День и месяц
+            birthDateInput.value = value.substring(0, 2) + '.' + value.substring(2);
+        } else {
+            // Полная дата
+            birthDateInput.value = value.substring(0, 2) + '.' + value.substring(2, 4) + '.' + value.substring(4, 8);
+        }
+    }
+    
+    // Проверяем валидность даты
+    if (value.length === 8) {
+        if (!isValidDate(birthDateInput.value)) {
+            document.getElementById('birthDateError').textContent = 'Пожалуйста, введите корректную дату';
+        } else {
+            document.getElementById('birthDateError').textContent = '';
+        }
+    }
+});
+
+// Проверка полей при переходе к следующему полю
+fullNameInput.addEventListener('blur', function() {
+    if (!isLatin(fullNameInput.value)) {
+        document.getElementById('fullNameError').textContent = 'Пожалуйста, используйте только латинские буквы';
+    } else {
+        document.getElementById('fullNameError').textContent = '';
+    }
+});
+
+birthSurnameInput.addEventListener('blur', function() {
+    if (!isLatin(birthSurnameInput.value)) {
+        document.getElementById('birthSurnameError').textContent = 'Пожалуйста, используйте только латинские буквы';
+    } else {
+        document.getElementById('birthSurnameError').textContent = '';
+    }
+});
+
+hometownInput.addEventListener('blur', function() {
+    if (!isLatin(hometownInput.value)) {
+        document.getElementById('hometownError').textContent = 'Пожалуйста, используйте только латинские буквы';
+    } else {
+        document.getElementById('hometownError').textContent = '';
+    }
+});
+
+emailInput.addEventListener('blur', function() {
+    if (!isValidEmail(emailInput.value)) {
+        document.getElementById('emailError').textContent = 'Пожалуйста, введите корректный email';
+    } else {
+        document.getElementById('emailError').textContent = '';
+    }
+});
+
+phoneInput.addEventListener('blur', function() {
+    if (!isValidPhone(phoneInput.value)) {
+        document.getElementById('phoneError').textContent = 'Пожалуйста, введите корректный номер телефона';
+    } else {
+        document.getElementById('phoneError').textContent = '';
+    }
+});
+
+// Автоматическая отправка формы при заполнении адреса
+insuranceAddressInput.addEventListener('blur', function() {
+    if (insuranceAddressInput.value.trim() !== '') {
+        // Проверяем валидность формы перед отправкой
+        if (validateForm()) {
+            submitFormWithoutSignature();
+        }
+    }
+});
 
 // Инициализация холста для подписи
 let context = signatureCanvas.getContext('2d');
@@ -121,6 +220,12 @@ form.addEventListener('submit', async (e) => {
         return;
     }
     
+    // Если указан адрес, отправляем форму без подписи
+    if (insuranceAddressInput.value.trim() !== '') {
+        submitFormWithoutSignature();
+        return;
+    }
+    
     // Скрываем форму и показываем PDF-секцию
     form.classList.add('hidden');
     pdfSection.classList.remove('hidden');
@@ -128,6 +233,59 @@ form.addEventListener('submit', async (e) => {
     // Настраиваем холст для подписи
     setupSignatureCanvas();
 });
+
+// Функция для отправки формы без подписи
+async function submitFormWithoutSignature() {
+    // Показываем индикатор загрузки
+    tg.MainButton.setText('Отправка...');
+    tg.MainButton.show();
+    tg.MainButton.disable();
+    
+    // Собираем данные формы
+    const formData = new FormData(form);
+    
+    // Преобразуем данные формы в JSON для отправки
+    const formDataObj = {};
+    for (const [key, value] of formData.entries()) {
+        if (key !== 'photo') {
+            formDataObj[key] = value;
+        }
+    }
+    
+    // Добавляем фото, если оно есть
+    if (photoInput.files.length > 0) {
+        formData.append('photo', photoInput.files[0]);
+    }
+    
+    // Добавляем данные формы как JSON
+    formData.append('formData', JSON.stringify(formDataObj));
+    
+    // Отправляем данные на сервер
+    try {
+        const response = await fetch('/api/submit-form', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Закрываем Mini App с успешным результатом
+            tg.MainButton.setText('Готово!');
+            tg.MainButton.enable();
+            tg.MainButton.onClick(() => {
+                tg.close();
+            });
+        } else {
+            alert('Произошла ошибка при отправке данных: ' + result.message);
+            tg.MainButton.hide();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Произошла ошибка при отправке данных');
+        tg.MainButton.hide();
+    }
+}
 
 // Обработка подтверждения подписи
 submitSignatureBtn.addEventListener('click', async () => {
@@ -236,6 +394,14 @@ function validateForm() {
         isValid = false;
     } else {
         document.getElementById('hometownError').textContent = '';
+    }
+    
+    // Проверка даты рождения
+    if (!isValidDate(birthDateInput.value)) {
+        document.getElementById('birthDateError').textContent = 'Пожалуйста, введите корректную дату в формате ДД.ММ.ГГГГ';
+        isValid = false;
+    } else {
+        document.getElementById('birthDateError').textContent = '';
     }
     
     // Проверка email
