@@ -145,6 +145,18 @@ button:hover {
     margin: 0;
 }
 
+.signature-agreement {
+    background-color: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #e53935;
+    font-weight: 500;
+}
+
 /* Стили для секции подписи */
 .signature-container {
     margin-top: 20px;

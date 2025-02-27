@@ -252,48 +252,31 @@ function getSignatureData() {
     return signatureCanvas.toDataURL('image/png');
 }
 
-// Функция для загрузки и отображения PDF
-async function createAndShowPdf() {
-    try {
-        // Очищаем область просмотра PDF
-        pdfViewer.innerHTML = '';
-        
-        // Создаем iframe для отображения PDF
-        const iframe = document.createElement('iframe');
-        iframe.style.width = '100%';
-        iframe.style.height = '500px';
-        iframe.style.border = 'none';
-        
-        // Создаем URL для загрузки шаблона PDF
-        const pdfUrl = '/api/get-template-pdf?' + new Date().getTime(); // Добавляем timestamp для избежания кэширования
-        
-        // Устанавливаем источник для iframe
-        iframe.src = pdfUrl;
-        
-        // Добавляем iframe в область просмотра
-        pdfViewer.appendChild(iframe);
-        
-        console.log('PDF успешно загружен и отображен');
-    } catch (error) {
-        console.error('Ошибка при загрузке PDF:', error);
-        
-        // В случае ошибки, отображаем данные формы в виде текста
-        pdfViewer.innerHTML = '';
-        
-        const pdfContent = document.createElement('div');
-        pdfContent.className = 'pdf-content';
-        pdfContent.innerHTML = `
-            <h3>Документ для подтверждения</h3>
-            <p>Имя, Фамилия: ${fullNameInput.value}</p>
-            <p>Фамилия при рождении: ${birthSurnameInput.value}</p>
-            <p>Дата рождения: ${birthDateInput.value}</p>
-            <p>Родной город: ${hometownInput.value}</p>
-            <p>Email: ${emailInput.value}</p>
-            <p>Телефон: ${phoneInput.value}</p>
-        `;
-        
-        pdfViewer.appendChild(pdfContent);
-    }
+// Функция для отображения данных пользователя
+function createAndShowPdf() {
+    // Очищаем область просмотра
+    pdfViewer.innerHTML = '';
+    
+    // Создаем элемент для отображения данных пользователя
+    const pdfContent = document.createElement('div');
+    pdfContent.className = 'pdf-content';
+    pdfContent.innerHTML = `
+        <h3>Подтверждение данных</h3>
+        <p>Имя, Фамилия: ${fullNameInput.value}</p>
+        <p>Фамилия при рождении: ${birthSurnameInput.value}</p>
+        <p>Дата рождения: ${birthDateInput.value}</p>
+        <p>Родной город: ${hometownInput.value}</p>
+        <p>Email: ${emailInput.value}</p>
+        <p>Телефон: ${phoneInput.value}</p>
+        <div class="signature-agreement">
+            <p>Оставляя подпись вы соглашаетесь на то, что вы подписываете доверенность на фирму Svechynskyy с целью перенимать вашу кореспонденции от компании BIG direct gesund и последующей передачи её вам</p>
+        </div>
+    `;
+    
+    // Добавляем созданный элемент на страницу
+    pdfViewer.appendChild(pdfContent);
+    
+    console.log('Данные пользователя отображены для подтверждения');
 }
 
 // Обработка отправки формы
@@ -322,67 +305,6 @@ form.addEventListener('submit', async (e) => {
     setupSignatureCanvas();
 });
 
-// Функция для отправки формы без подписи
-async function submitFormWithoutSignature() {
-    try {
-        // Показываем индикатор загрузки
-        tg.MainButton.setText('Отправка...');
-        tg.MainButton.show();
-        tg.MainButton.disable();
-        
-        // Собираем данные формы
-        const formData = new FormData(form);
-        
-        // Преобразуем данные формы в объект для отправки
-        const formDataObj = {};
-        for (const [key, value] of formData.entries()) {
-            if (key !== 'photo') {
-                formDataObj[key] = value;
-            }
-        }
-        
-        // Создаем новый FormData для отправки
-        const dataToSend = new FormData();
-        
-        // Добавляем фото, если оно есть
-        if (photoInput.files.length > 0) {
-            dataToSend.append('photo', photoInput.files[0]);
-        }
-        
-        // Добавляем данные формы как JSON
-        dataToSend.append('formData', JSON.stringify(formDataObj));
-        
-        // Отправляем данные на сервер
-        const response = await fetch('/api/submit-form', {
-            method: 'POST',
-            body: dataToSend
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Сервер вернул ошибку: ${response.status} ${errorText}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            // Закрываем Mini App с успешным результатом
-            tg.MainButton.setText('Готово!');
-            tg.MainButton.enable();
-            tg.MainButton.onClick(() => {
-                tg.close();
-            });
-        } else {
-            alert('Произошла ошибка при отправке данных: ' + result.message);
-            tg.MainButton.hide();
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Произошла ошибка при отправке данных: ' + error.message);
-        tg.MainButton.hide();
-    }
-}
-
 // Обработка подтверждения подписи
 submitSignatureBtn.addEventListener('click', async () => {
     try {
@@ -410,6 +332,11 @@ submitSignatureBtn.addEventListener('click', async () => {
             }
         }
         
+        // Добавляем Telegram Chat ID пользователя, если доступен
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            formDataObj.telegramChatId = tg.initDataUnsafe.user.id.toString();
+        }
+        
         // Создаем новый FormData для отправки
         const dataToSend = new FormData();
         
@@ -423,6 +350,11 @@ submitSignatureBtn.addEventListener('click', async () => {
         
         // Добавляем данные о подписи
         dataToSend.append('signature', signatureData);
+        
+        // Добавляем Telegram Chat ID как отдельное поле (для надежности)
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            dataToSend.append('telegramChatId', tg.initDataUnsafe.user.id.toString());
+        }
         
         // Отправляем данные на сервер
         const response = await fetch('/api/submit-form', {
@@ -545,3 +477,74 @@ photoInput.addEventListener('change', (e) => {
         reader.readAsDataURL(file);
     }
 });
+
+// Функция для отправки формы без подписи
+async function submitFormWithoutSignature() {
+    try {
+        // Показываем индикатор загрузки
+        tg.MainButton.setText('Отправка...');
+        tg.MainButton.show();
+        tg.MainButton.disable();
+        
+        // Собираем данные формы
+        const formData = new FormData(form);
+        
+        // Преобразуем данные формы в объект для отправки
+        const formDataObj = {};
+        for (const [key, value] of formData.entries()) {
+            if (key !== 'photo') {
+                formDataObj[key] = value;
+            }
+        }
+        
+        // Добавляем Telegram Chat ID пользователя, если доступен
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            formDataObj.telegramChatId = tg.initDataUnsafe.user.id.toString();
+        }
+        
+        // Создаем новый FormData для отправки
+        const dataToSend = new FormData();
+        
+        // Добавляем фото, если оно есть
+        if (photoInput.files.length > 0) {
+            dataToSend.append('photo', photoInput.files[0]);
+        }
+        
+        // Добавляем данные формы как JSON
+        dataToSend.append('formData', JSON.stringify(formDataObj));
+        
+        // Добавляем Telegram Chat ID как отдельное поле (для надежности)
+        if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            dataToSend.append('telegramChatId', tg.initDataUnsafe.user.id.toString());
+        }
+        
+        // Отправляем данные на сервер
+        const response = await fetch('/api/submit-form', {
+            method: 'POST',
+            body: dataToSend
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Сервер вернул ошибку: ${response.status} ${errorText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Закрываем Mini App с успешным результатом
+            tg.MainButton.setText('Готово!');
+            tg.MainButton.enable();
+            tg.MainButton.onClick(() => {
+                tg.close();
+            });
+        } else {
+            alert('Произошла ошибка при отправке данных: ' + result.message);
+            tg.MainButton.hide();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Произошла ошибка при отправке данных: ' + error.message);
+        tg.MainButton.hide();
+    }
+}

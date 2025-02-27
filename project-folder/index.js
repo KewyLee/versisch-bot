@@ -18,17 +18,17 @@ async function createTemplatePdfIfNotExists(templatePath) {
       const pdfDoc = await PDFDocument.create();
       const page = pdfDoc.addPage([595, 842]); // A4 размер
       
-      // Добавляем текст на страницу
+      // Добавляем текст на страницу (только латиница для избежания проблем с кодировкой)
       const { width, height } = page.getSize();
-      page.drawText('Шаблон формы для заполнения', { x: 100, y: height - 100, size: 16 });
-      page.drawText('Имя, Фамилия: ___________________', { x: 100, y: height - 150, size: 12 });
-      page.drawText('Фамилия при рождении: ___________________', { x: 100, y: height - 180, size: 12 });
-      page.drawText('Дата рождения: ___________________', { x: 100, y: height - 210, size: 12 });
-      page.drawText('Родной город: ___________________', { x: 100, y: height - 240, size: 12 });
-      page.drawText('Адрес: ___________________', { x: 100, y: height - 270, size: 12 });
+      page.drawText('Template Form', { x: 100, y: height - 100, size: 16 });
+      page.drawText('Full Name: ___________________', { x: 100, y: height - 150, size: 12 });
+      page.drawText('Birth Surname: ___________________', { x: 100, y: height - 180, size: 12 });
+      page.drawText('Date of Birth: ___________________', { x: 100, y: height - 210, size: 12 });
+      page.drawText('Hometown: ___________________', { x: 100, y: height - 240, size: 12 });
+      page.drawText('Address: ___________________', { x: 100, y: height - 270, size: 12 });
       page.drawText('Email: ___________________', { x: 100, y: height - 300, size: 12 });
-      page.drawText('Телефон: ___________________', { x: 100, y: height - 330, size: 12 });
-      page.drawText('Подпись:', { x: 100, y: height - 380, size: 12 });
+      page.drawText('Phone: ___________________', { x: 100, y: height - 330, size: 12 });
+      page.drawText('Signature:', { x: 100, y: height - 380, size: 12 });
       
       // Создаем прямоугольник для подписи
       page.drawRectangle({
@@ -65,7 +65,7 @@ async function createTemplatePdfIfNotExists(templatePath) {
 const config = {
   botToken: process.env.BOT_TOKEN || '7557471395:AAFNHZlMynXghYKmr16XWOWVfUpgAqP_Sh8', // Токен Telegram бота
   adminChatId: process.env.ADMIN_CHAT_ID || '6085514487', // ID чата администратора
-  templatePdfPath: process.env.PDF_TEMPLATE_PATH || './template.pdf', // Путь к шаблону PDF
+  templatePdfPath: process.env.PDF_TEMPLATE_PATH || path.join(__dirname, 'template.pdf'), // Путь к шаблону PDF
   webappUrl: process.env.WEBAPP_URL || 'https://versisch-fda933ace75b.herokuapp.com', // URL веб-приложения
 };
 
@@ -143,8 +143,53 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
     fs.writeFileSync(pdfPath, filledPdfBuffer);
     console.log('PDF сохранен по пути:', pdfPath);
     
+    // Формируем ID чата пользователя, если есть в данных
+    const userChatId = formData.telegramChatId || req.body.telegramChatId;
+    
     // Отправляем данные и документы администратору
     await sendDataToAdmin(formData, pdfPath, photoPath);
+    
+    // Если есть ID чата пользователя, отправляем документ пользователю
+    if (userChatId) {
+      try {
+        // Сначала отправляем фото, если оно есть
+        if (photoPath && fs.existsSync(photoPath)) {
+          await bot.telegram.sendPhoto(userChatId, { source: fs.createReadStream(photoPath) });
+        }
+        
+        // Формируем сообщение с данными
+        let message = 'Данные в формате:\n\n';
+        
+        // Обрабатываем имя и фамилию отдельно
+        if (formData.fullName) {
+          const nameParts = formData.fullName.split(' ');
+          if (nameParts.length >= 2) {
+            message += `Имя: \`${nameParts[0]}\`\n`;
+            message += `Фамилия: \`${nameParts.slice(1).join(' ')}\`\n`;
+          } else {
+            message += `Имя: \`${formData.fullName}\`\n`;
+          }
+        }
+        
+        // Добавляем остальные данные формы
+        Object.keys(formData).forEach(key => {
+          if (key !== 'fullName' && formData[key]) {
+            message += `${key}: \`${formData[key]}\`\n`;
+          }
+        });
+        
+        // Отправляем сообщение с данными
+        await bot.telegram.sendMessage(userChatId, message, { parse_mode: 'Markdown' });
+        
+        // Отправляем заполненный PDF
+        await bot.telegram.sendDocument(userChatId, { source: fs.createReadStream(pdfPath) });
+        
+        console.log(`Документ успешно отправлен пользователю в чат: ${userChatId}`);
+      } catch (chatError) {
+        console.error(`Ошибка при отправке документа пользователю: ${chatError.message}`);
+        // Продолжаем работу даже если не удалось отправить документ пользователю
+      }
+    }
     
     res.json({ success: true, message: 'Данные успешно отправлены' });
   } catch (error) {
@@ -155,143 +200,155 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
 
 // Функция для заполнения PDF данными
 async function fillPdfWithData(formData, signatureData) {
-  // Проверяем существование шаблона PDF
-  if (!fs.existsSync(config.templatePdfPath)) {
-    console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
-    // Используем путь относительно текущей директории
-    const alternativePath = path.join(__dirname, 'template.pdf');
-    if (fs.existsSync(alternativePath)) {
-      console.log(`Используем альтернативный путь к шаблону: ${alternativePath}`);
-      config.templatePdfPath = alternativePath;
-    } else {
-      // Создаем шаблон PDF
+  try {
+    // Проверяем существование шаблона PDF и создаем его, если нет
+    if (!fs.existsSync(config.templatePdfPath)) {
+      console.log(`Шаблон PDF не найден по пути: ${config.templatePdfPath}, создаем новый...`);
       const templateCreated = await createTemplatePdfIfNotExists(config.templatePdfPath);
       if (!templateCreated) {
         throw new Error(`Не удалось создать шаблон PDF`);
       }
     }
-  }
-  
-  // Загружаем шаблон PDF
-  const pdfBytes = fs.readFileSync(config.templatePdfPath);
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const pages = pdfDoc.getPages();
-  const firstPage = pages[0];
-  
-  // Получаем размеры страницы
-  const { width, height } = firstPage.getSize();
-  console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
-  
-  // Добавляем текстовые данные на страницу
-  const fontSize = 12;
-  const textOptions = { size: fontSize };
-  
-  // Определяем координаты полей на основе вашего PDF-шаблона
-  // Эти значения могут потребовать корректировки в зависимости от вашего шаблона
-  const fieldPositions = {
-    fullName: { x: 200, y: height - 150 },
-    birthSurname: { x: 200, y: height - 180 },
-    birthDate: { x: 200, y: height - 210 },
-    hometown: { x: 200, y: height - 240 },
-    insuranceAddress: { x: 200, y: height - 270 },
-    email: { x: 200, y: height - 300 },
-    phone: { x: 200, y: height - 330 },
-    signature: { x: 100, y: 100, width: 200, height: 80 } // Подпись внизу документа
-  };
-  
-  console.log('Заполнение полей PDF данными из формы');
-  
-  // Заполняем поля данными
-  if (formData.fullName) {
-    firstPage.drawText(formData.fullName, { x: fieldPositions.fullName.x, y: fieldPositions.fullName.y, ...textOptions });
-    console.log(`Заполнено поле fullName: ${formData.fullName}`);
-  }
-  
-  if (formData.birthSurname) {
-    firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
-    console.log(`Заполнено поле birthSurname: ${formData.birthSurname}`);
-  }
-  
-  if (formData.birthDate) {
-    firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
-    console.log(`Заполнено поле birthDate: ${formData.birthDate}`);
-  }
-  
-  if (formData.hometown) {
-    firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
-    console.log(`Заполнено поле hometown: ${formData.hometown}`);
-  }
-  
-  // Заполняем адрес только если он указан
-  if (formData.insuranceAddress && formData.insuranceAddress.trim() !== '') {
-    firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.insuranceAddress.x, y: fieldPositions.insuranceAddress.y, ...textOptions });
-    console.log(`Заполнено поле insuranceAddress: ${formData.insuranceAddress}`);
-  } else {
-    console.log('Поле insuranceAddress не заполнено, так как оно пустое');
-  }
-  
-  if (formData.email) {
-    firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
-    console.log(`Заполнено поле email: ${formData.email}`);
-  }
-  
-  if (formData.phone) {
-    firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
-    console.log(`Заполнено поле phone: ${formData.phone}`);
-  }
-  
-  // Добавляем подпись, если она есть
-  if (signatureData) {
-    try {
-      console.log('Добавление подписи в PDF');
-      
-      // Удаляем префикс data:image/png;base64, если он есть
-      const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
-      
-      // Преобразуем данные подписи base64 в изображение
-      const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
-      const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
-      
-      // Добавляем изображение подписи в PDF в нижней части документа
-      firstPage.drawImage(signatureImage, {
-        x: fieldPositions.signature.x,
-        y: fieldPositions.signature.y,
-        width: fieldPositions.signature.width,
-        height: fieldPositions.signature.height,
-      });
-      
-      console.log('Подпись успешно добавлена в PDF');
-    } catch (error) {
-      console.warn(`Не удалось добавить подпись: ${error.message}`);
+    
+    // Загружаем шаблон PDF
+    const pdfBytes = fs.readFileSync(config.templatePdfPath);
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const pages = pdfDoc.getPages();
+    const firstPage = pages[0];
+    
+    // Получаем размеры страницы
+    const { width, height } = firstPage.getSize();
+    console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
+    
+    // Добавляем текстовые данные на страницу
+    const fontSize = 12;
+    const textOptions = { size: fontSize };
+    
+    // Определяем координаты полей на основе вашего PDF-шаблона
+    const fieldPositions = {
+      fullName: { x: 200, y: height - 150 },
+      birthSurname: { x: 200, y: height - 180 },
+      birthDate: { x: 200, y: height - 210 },
+      hometown: { x: 200, y: height - 240 },
+      insuranceAddress: { x: 200, y: height - 270 },
+      email: { x: 200, y: height - 300 },
+      phone: { x: 200, y: height - 330 },
+      signature: { x: 100, y: 100, width: 200, height: 80 } // Подпись внизу документа
+    };
+    
+    console.log('Заполнение полей PDF данными из формы');
+    
+    // Заполняем поля данными
+    if (formData.fullName) {
+      firstPage.drawText(formData.fullName, { x: fieldPositions.fullName.x, y: fieldPositions.fullName.y, ...textOptions });
+      console.log(`Заполнено поле fullName: ${formData.fullName}`);
     }
+    
+    if (formData.birthSurname) {
+      firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
+      console.log(`Заполнено поле birthSurname: ${formData.birthSurname}`);
+    }
+    
+    if (formData.birthDate) {
+      firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
+      console.log(`Заполнено поле birthDate: ${formData.birthDate}`);
+    }
+    
+    if (formData.hometown) {
+      firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
+      console.log(`Заполнено поле hometown: ${formData.hometown}`);
+    }
+    
+    // Заполняем адрес только если он указан
+    if (formData.insuranceAddress && formData.insuranceAddress.trim() !== '') {
+      firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.insuranceAddress.x, y: fieldPositions.insuranceAddress.y, ...textOptions });
+      console.log(`Заполнено поле insuranceAddress: ${formData.insuranceAddress}`);
+    } else {
+      console.log('Поле insuranceAddress не заполнено, так как оно пустое');
+    }
+    
+    if (formData.email) {
+      firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
+      console.log(`Заполнено поле email: ${formData.email}`);
+    }
+    
+    if (formData.phone) {
+      firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
+      console.log(`Заполнено поле phone: ${formData.phone}`);
+    }
+    
+    // Добавляем подпись, если она есть
+    if (signatureData) {
+      try {
+        console.log('Добавление подписи в PDF');
+        
+        // Удаляем префикс data:image/png;base64, если он есть
+        const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
+        
+        // Преобразуем данные подписи base64 в изображение
+        const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
+        const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
+        
+        // Добавляем изображение подписи в PDF в нижней части документа
+        firstPage.drawImage(signatureImage, {
+          x: fieldPositions.signature.x,
+          y: fieldPositions.signature.y,
+          width: fieldPositions.signature.width,
+          height: fieldPositions.signature.height,
+        });
+        
+        console.log('Подпись успешно добавлена в PDF');
+      } catch (error) {
+        console.warn(`Не удалось добавить подпись: ${error.message}`);
+      }
+    }
+    
+    // Сохраняем PDF
+    console.log('Сохранение заполненного PDF');
+    return await pdfDoc.save();
+  } catch (error) {
+    console.error(`Ошибка при заполнении PDF: ${error.message}`);
+    throw error;
   }
-  
-  // Сохраняем PDF
-  console.log('Сохранение заполненного PDF');
-  return await pdfDoc.save();
 }
 
 // Функция для отправки данных администратору
 async function sendDataToAdmin(formData, pdfPath, photoPath) {
   try {
-    // Формируем сообщение с данными формы
-    let message = 'Новая заявка:\n\n';
-    Object.keys(formData).forEach(key => {
-      message += `${key}: ${formData[key] || 'Не указано'}\n`;
-    });
+    console.log('Отправка данных администратору:', config.adminChatId);
     
-    console.log('Отправка сообщения администратору:', config.adminChatId);
-    
-    // Отправляем сообщение администратору
-    await bot.telegram.sendMessage(config.adminChatId, message);
-    
-    // Отправляем фото, если оно есть
+    // Сначала отправляем фото, если оно есть
     if (photoPath && fs.existsSync(photoPath)) {
       console.log('Отправка фото администратору');
       await bot.telegram.sendPhoto(config.adminChatId, { source: fs.createReadStream(photoPath) });
     }
     
-    // Отправляем заполненный PDF
+    // Формируем сообщение с данными формы в нужном формате
+    let message = 'Данные в формате:\n\n';
+    
+    // Обрабатываем имя и фамилию отдельно, если имя и фамилия вместе
+    if (formData.fullName) {
+      const nameParts = formData.fullName.split(' ');
+      if (nameParts.length >= 2) {
+        message += `Имя: \`${nameParts[0]}\`\n`;
+        message += `Фамилия: \`${nameParts.slice(1).join(' ')}\`\n`;
+      } else {
+        message += `Имя: \`${formData.fullName}\`\n`;
+      }
+    }
+    
+    // Добавляем остальные данные формы с форматированием для копирования
+    Object.keys(formData).forEach(key => {
+      // Пропускаем fullName, так как мы уже обработали его выше
+      if (key !== 'fullName' && formData[key]) {
+        message += `${key}: \`${formData[key]}\`\n`;
+      }
+    });
+    
+    // Отправляем сообщение с данными в формате Markdown для возможности копирования
+    await bot.telegram.sendMessage(config.adminChatId, message, { parse_mode: 'Markdown' });
+    
+    // Отправляем заполненный PDF последним
     if (fs.existsSync(pdfPath)) {
       console.log('Отправка PDF администратору');
       await bot.telegram.sendDocument(config.adminChatId, { source: fs.createReadStream(pdfPath) });
@@ -314,23 +371,37 @@ app.get('/api/get-template-pdf', (req, res) => {
   try {
     console.log('Запрос на получение PDF-шаблона');
     
-    // Проверяем существование шаблона PDF
-    const templatePath = path.join(__dirname, 'BIG_Vermittlervollmacht§34d.pdf');
-    
-    if (!fs.existsSync(templatePath)) {
-      console.error(`Шаблон PDF не найден по пути: ${templatePath}`);
-      return res.status(404).send('PDF шаблон не найден');
+    // Используем конфигурационный путь к шаблону
+    if (!fs.existsSync(config.templatePdfPath)) {
+      console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
+      // Пробуем создать шаблон
+      createTemplatePdfIfNotExists(config.templatePdfPath).then(created => {
+        if (created) {
+          // Устанавливаем заголовки для файла
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
+          
+          // Отправляем файл клиенту
+          const fileStream = fs.createReadStream(config.templatePdfPath);
+          fileStream.pipe(res);
+        } else {
+          res.status(404).send('Не удалось создать PDF шаблон');
+        }
+      }).catch(err => {
+        console.error('Ошибка при создании шаблона:', err);
+        res.status(500).send('Ошибка при создании шаблона PDF');
+      });
+    } else {
+      // Устанавливаем заголовки для файла
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
+      
+      // Отправляем файл клиенту
+      const fileStream = fs.createReadStream(config.templatePdfPath);
+      fileStream.pipe(res);
+      
+      console.log('PDF-шаблон успешно отправлен клиенту');
     }
-    
-    // Устанавливаем заголовки для файла
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
-    
-    // Отправляем файл клиенту
-    const fileStream = fs.createReadStream(templatePath);
-    fileStream.pipe(res);
-    
-    console.log('PDF-шаблон успешно отправлен клиенту');
   } catch (error) {
     console.error('Ошибка при отправке PDF-шаблона:', error);
     res.status(500).send('Ошибка при загрузке PDF-шаблона');
