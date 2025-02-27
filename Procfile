@@ -1,1 +1,1 @@
-web: node project-folder/index.js 
+web: node server.js 
