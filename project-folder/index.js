@@ -99,34 +99,39 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
     // Если есть ID чата пользователя, отправляем документ пользователю
     if (userChatId) {
       try {
-        // Сначала отправляем фото, если оно есть
-        if (photoPath && fs.existsSync(photoPath)) {
-          await bot.telegram.sendPhoto(userChatId, { source: fs.createReadStream(photoPath) });
-        }
+        // Сначала отправляем сообщение о успешной отправке заявки
+        let userMessage = "*Заявка отправлена!*\n";
+        userMessage += "По всем вопросам связанным с оформлением связывайтесь в *вашей группе* с упоминанием Игоря([@helpgermany](https://t.me/helpgermany))\n\n";
+        userMessage += "*Ваши данные:*\n\n";
         
-        // Формируем сообщение с данными
-        let message = 'Данные в формате:\n\n';
+        // Добавляем данные пользователя с русскими названиями полей
+        const fieldNames = {
+          fullName: 'Имя и фамилия',
+          birthSurname: 'Фамилия при рождении',
+          birthDate: 'Дата рождения',
+          hometown: 'Место рождения',
+          insuranceAddress: 'Адрес',
+          maritalStatus: 'Семейное положение',
+          email: 'Email',
+          phone: 'Телефон'
+        };
         
-        // Обрабатываем имя и фамилию отдельно
-        if (formData.fullName) {
-          const nameParts = formData.fullName.split(' ');
-          if (nameParts.length >= 2) {
-            message += `Имя: \`${nameParts[0]}\`\n`;
-            message += `Фамилия: \`${nameParts.slice(1).join(' ')}\`\n`;
-          } else {
-            message += `Имя: \`${formData.fullName}\`\n`;
-          }
-        }
-        
-        // Добавляем остальные данные формы
+        // Добавляем данные формы с переводом названий полей
         Object.keys(formData).forEach(key => {
-          if (key !== 'fullName' && formData[key]) {
-            message += `${key}: \`${formData[key]}\`\n`;
+          // Не включаем ID чата в сообщение пользователю
+          if (key !== 'telegramChatId' && formData[key]) {
+            const fieldName = fieldNames[key] || key;
+            userMessage += `${fieldName}: \`${formData[key]}\`\n`;
           }
         });
         
         // Отправляем сообщение с данными
-        await bot.telegram.sendMessage(userChatId, message, { parse_mode: 'Markdown' });
+        await bot.telegram.sendMessage(userChatId, userMessage, { parse_mode: 'Markdown' });
+        
+        // Отправляем фото, если оно есть
+        if (photoPath && fs.existsSync(photoPath)) {
+          await bot.telegram.sendPhoto(userChatId, { source: fs.createReadStream(photoPath) });
+        }
         
         // Отправляем заполненный PDF
         await bot.telegram.sendDocument(userChatId, { source: fs.createReadStream(pdfPath) });
@@ -190,20 +195,20 @@ async function fillPdfWithData(formData, signatureData) {
       console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
       
       // Добавляем текстовые данные на страницу
-      const fontSize = 12;
+      const fontSize = 11;
       const textOptions = { size: fontSize };
       
       // Определяем координаты полей для Vermittlervollmacht PDF
-      // Эти координаты нужно настроить под реальный PDF
+      // Обновленные координаты на основе изображения PDF
       const fieldPositions = {
-        fullName: { x: 120, y: height - 150 },      // Позиция для полного имени
-        birthSurname: { x: 120, y: height - 180 },  // Позиция для фамилии при рождении
-        birthDate: { x: 350, y: height - 210 },     // Позиция для даты рождения
-        hometown: { x: 350, y: height - 240 },      // Позиция для родного города
-        insuranceAddress: { x: 120, y: height - 270 }, // Позиция для адреса
-        email: { x: 120, y: height - 300 },         // Позиция для email
-        phone: { x: 350, y: height - 330 },         // Позиция для телефона
-        signature: { x: 120, y: height - 580, width: 200, height: 60 } // Позиция для подписи над "Unterschrift des Versicherten"
+        fullName: { x: 123, y: height - 183 },      // Имя Фамилия в секции "Persönliche Angaben des Versicherten"
+        birthSurname: { x: 123, y: height - 203 },  // Фамилия при рождении
+        birthDate: { x: 266, y: height - 183 },     // Дата рождения
+        hometown: { x: 307, y: height - 203 },      // Город рождения
+        insuranceAddress: { x: 123, y: height - 225 }, // Адрес
+        email: { x: 123, y: height - 265 },         // Email
+        phone: { x: 307, y: height - 265 },         // Телефон
+        signature: { x: 93, y: height - 412, width: 120, height: 45 } // Позиция для подписи
       };
       
       console.log('Заполнение полей PDF данными из формы');
@@ -250,7 +255,7 @@ async function fillPdfWithData(formData, signatureData) {
       // Добавляем подпись, если она есть
       if (signatureData) {
         try {
-          console.log('Добавление подписи в PDF над строкой "Unterschrift des Versicherten"');
+          console.log('Добавление подписи в PDF');
           
           // Удаляем префикс data:image/png;base64, если он есть
           const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
@@ -260,7 +265,7 @@ async function fillPdfWithData(formData, signatureData) {
           const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
           const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
           
-          // Добавляем изображение подписи в PDF над строкой "Unterschrift des Versicherten"
+          // Добавляем изображение подписи в PDF
           firstPage.drawImage(signatureImage, {
             x: fieldPositions.signature.x,
             y: fieldPositions.signature.y,
@@ -292,36 +297,50 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
   try {
     console.log('Отправка данных администратору:', config.adminChatId);
     
+    // Получаем имя и фамилию пользователя
+    let userName = formData.fullName || 'Пользователь';
+    let userLink = '';
+    
+    // Формируем ссылку на пользователя, если есть ID чата
+    if (formData.telegramChatId) {
+      userLink = `[${userName}](tg://user?id=${formData.telegramChatId})`;
+    } else {
+      userLink = userName;
+    }
+    
+    // Формируем сообщение с данными для администратора
+    let adminMessage = `*Новая заявка подана от ${userLink}*\n\n`;
+    adminMessage += `*Данные:*\n\n`;
+    
+    // Добавляем данные пользователя с русскими названиями полей
+    const fieldNames = {
+      fullName: 'Имя и фамилия',
+      birthSurname: 'Фамилия при рождении',
+      birthDate: 'Дата рождения',
+      hometown: 'Место рождения',
+      insuranceAddress: 'Адрес',
+      maritalStatus: 'Семейное положение',
+      email: 'Email',
+      phone: 'Телефон',
+      telegramChatId: 'ID чата Telegram'
+    };
+    
+    // Добавляем все данные формы с форматированием для копирования
+    Object.keys(formData).forEach(key => {
+      if (formData[key]) {
+        const fieldName = fieldNames[key] || key;
+        adminMessage += `${fieldName}: \`${formData[key]}\`\n`;
+      }
+    });
+    
     // Сначала отправляем фото, если оно есть
     if (photoPath && fs.existsSync(photoPath)) {
       console.log('Отправка фото администратору');
       await bot.telegram.sendPhoto(config.adminChatId, { source: fs.createReadStream(photoPath) });
     }
     
-    // Формируем сообщение с данными формы в нужном формате
-    let message = 'Данные в формате:\n\n';
-    
-    // Обрабатываем имя и фамилию отдельно, если имя и фамилия вместе
-    if (formData.fullName) {
-      const nameParts = formData.fullName.split(' ');
-      if (nameParts.length >= 2) {
-        message += `Имя: \`${nameParts[0]}\`\n`;
-        message += `Фамилия: \`${nameParts.slice(1).join(' ')}\`\n`;
-      } else {
-        message += `Имя: \`${formData.fullName}\`\n`;
-      }
-    }
-    
-    // Добавляем остальные данные формы с форматированием для копирования
-    Object.keys(formData).forEach(key => {
-      // Пропускаем fullName, так как мы уже обработали его выше
-      if (key !== 'fullName' && formData[key]) {
-        message += `${key}: \`${formData[key]}\`\n`;
-      }
-    });
-    
     // Отправляем сообщение с данными в формате Markdown для возможности копирования
-    await bot.telegram.sendMessage(config.adminChatId, message, { parse_mode: 'Markdown' });
+    await bot.telegram.sendMessage(config.adminChatId, adminMessage, { parse_mode: 'Markdown' });
     
     // Отправляем заполненный PDF последним
     if (fs.existsSync(pdfPath)) {
@@ -385,51 +404,70 @@ async function createBasicPdfTemplate(outputPath) {
     
     // Загружаем стандартный шрифт
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     
     // Добавляем заголовок
-    page.drawText('Vermittlervollmacht', {
-      x: 50,
+    page.drawText('Vollmacht für Vertriebspartner §34d GewO, zurück an die BIG', {
+      x: 30,
       y: height - 50,
-      size: 24,
-      font: font,
+      size: 14,
+      font: boldFont,
+      color: rgb(0, 0, 0),
+    });
+    
+    // Добавляем разделы формы
+    page.drawText('Persönliche Angaben des Versicherten:', {
+      x: 30,
+      y: height - 150,
+      size: 12,
+      font: boldFont,
       color: rgb(0, 0, 0),
     });
     
     // Добавляем поля для данных
     const fieldLabels = [
-      { label: 'Name, Vorname:', y: height - 150 },
-      { label: 'Geburtsname:', y: height - 180 },
-      { label: 'Geburtsdatum:', y: height - 210 },
-      { label: 'Geburtsort:', y: height - 240 },
-      { label: 'Anschrift:', y: height - 270 },
-      { label: 'E-Mail:', y: height - 300 },
-      { label: 'Telefon:', y: height - 330 }
+      { label: 'Name, Vorname:', x: 30, y: height - 180 },
+      { label: 'Geburtsdatum:', x: 230, y: height - 180 },
+      { label: 'Geburtsname:', x: 30, y: height - 200 },
+      { label: 'Geburtsort:', x: 230, y: height - 200 },
+      { label: 'Anschrift:', x: 30, y: height - 220 },
+      { label: 'E-Mail:', x: 30, y: height - 260 },
+      { label: 'Telefon:', x: 230, y: height - 260 }
     ];
     
     // Рисуем метки полей
     fieldLabels.forEach(field => {
       page.drawText(field.label, {
-        x: 50,
+        x: field.x,
         y: field.y,
-        size: 12,
+        size: 11,
         font: font,
         color: rgb(0, 0, 0),
       });
     });
     
+    // Добавляем раздел для данных представителя
+    page.drawText('Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO:', {
+      x: 30,
+      y: height - 300,
+      size: 12,
+      font: boldFont,
+      color: rgb(0, 0, 0),
+    });
+    
     // Добавляем место для подписи
     page.drawText('Unterschrift des Versicherten:', {
-      x: 50,
-      y: height - 550,
-      size: 12,
+      x: 30,
+      y: height - 380,
+      size: 11,
       font: font,
       color: rgb(0, 0, 0),
     });
     
     // Рисуем линию для подписи
     page.drawLine({
-      start: { x: 50, y: height - 580 },
-      end: { x: 250, y: height - 580 },
+      start: { x: 30, y: height - 420 },
+      end: { x: 200, y: height - 420 },
       thickness: 1,
       color: rgb(0, 0, 0),
     });
