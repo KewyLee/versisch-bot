@@ -181,8 +181,10 @@ function startDrawing(e) {
     e.preventDefault();
     isDrawing = true;
     const rect = signatureCanvas.getBoundingClientRect();
-    lastX = e.clientX - rect.left;
-    lastY = e.clientY - rect.top;
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    lastX = (e.clientX - rect.left) * scaleX;
+    lastY = (e.clientY - rect.top) * scaleY;
 }
 
 function startDrawingTouch(e) {
@@ -190,8 +192,10 @@ function startDrawingTouch(e) {
     isDrawing = true;
     const rect = signatureCanvas.getBoundingClientRect();
     const touch = e.touches[0];
-    lastX = touch.clientX - rect.left;
-    lastY = touch.clientY - rect.top;
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    lastX = (touch.clientX - rect.left) * scaleX;
+    lastY = (touch.clientY - rect.top) * scaleY;
 }
 
 function draw(e) {
@@ -199,8 +203,10 @@ function draw(e) {
     e.preventDefault();
     
     const rect = signatureCanvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
     
     context.beginPath();
     context.moveTo(lastX, lastY);
@@ -217,8 +223,10 @@ function drawTouch(e) {
     
     const rect = signatureCanvas.getBoundingClientRect();
     const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    const x = (touch.clientX - rect.left) * scaleX;
+    const y = (touch.clientY - rect.top) * scaleY;
     
     context.beginPath();
     context.moveTo(lastX, lastY);
@@ -244,24 +252,48 @@ function getSignatureData() {
     return signatureCanvas.toDataURL('image/png');
 }
 
-// Создаем простой PDF для отображения
-function createAndShowPdf() {
-    // Создаем div для эмуляции PDF
-    pdfViewer.innerHTML = '';
-    
-    const pdfContent = document.createElement('div');
-    pdfContent.className = 'pdf-content';
-    pdfContent.innerHTML = `
-        <h3>Документ для подтверждения</h3>
-        <p>Имя, Фамилия: ${fullNameInput.value}</p>
-        <p>Фамилия при рождении: ${birthSurnameInput.value}</p>
-        <p>Дата рождения: ${birthDateInput.value}</p>
-        <p>Родной город: ${hometownInput.value}</p>
-        <p>Email: ${emailInput.value}</p>
-        <p>Телефон: ${phoneInput.value}</p>
-    `;
-    
-    pdfViewer.appendChild(pdfContent);
+// Функция для загрузки и отображения PDF
+async function createAndShowPdf() {
+    try {
+        // Очищаем область просмотра PDF
+        pdfViewer.innerHTML = '';
+        
+        // Создаем iframe для отображения PDF
+        const iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.height = '500px';
+        iframe.style.border = 'none';
+        
+        // Создаем URL для загрузки шаблона PDF
+        const pdfUrl = '/api/get-template-pdf?' + new Date().getTime(); // Добавляем timestamp для избежания кэширования
+        
+        // Устанавливаем источник для iframe
+        iframe.src = pdfUrl;
+        
+        // Добавляем iframe в область просмотра
+        pdfViewer.appendChild(iframe);
+        
+        console.log('PDF успешно загружен и отображен');
+    } catch (error) {
+        console.error('Ошибка при загрузке PDF:', error);
+        
+        // В случае ошибки, отображаем данные формы в виде текста
+        pdfViewer.innerHTML = '';
+        
+        const pdfContent = document.createElement('div');
+        pdfContent.className = 'pdf-content';
+        pdfContent.innerHTML = `
+            <h3>Документ для подтверждения</h3>
+            <p>Имя, Фамилия: ${fullNameInput.value}</p>
+            <p>Фамилия при рождении: ${birthSurnameInput.value}</p>
+            <p>Дата рождения: ${birthDateInput.value}</p>
+            <p>Родной город: ${hometownInput.value}</p>
+            <p>Email: ${emailInput.value}</p>
+            <p>Телефон: ${phoneInput.value}</p>
+        `;
+        
+        pdfViewer.appendChild(pdfContent);
+    }
 }
 
 // Обработка отправки формы
@@ -301,7 +333,7 @@ async function submitFormWithoutSignature() {
         // Собираем данные формы
         const formData = new FormData(form);
         
-        // Преобразуем данные формы в JSON для отправки
+        // Преобразуем данные формы в объект для отправки
         const formDataObj = {};
         for (const [key, value] of formData.entries()) {
             if (key !== 'photo') {
@@ -309,19 +341,27 @@ async function submitFormWithoutSignature() {
             }
         }
         
+        // Создаем новый FormData для отправки
+        const dataToSend = new FormData();
+        
         // Добавляем фото, если оно есть
         if (photoInput.files.length > 0) {
-            formData.append('photo', photoInput.files[0]);
+            dataToSend.append('photo', photoInput.files[0]);
         }
         
         // Добавляем данные формы как JSON
-        formData.append('formData', JSON.stringify(formDataObj));
+        dataToSend.append('formData', JSON.stringify(formDataObj));
         
         // Отправляем данные на сервер
         const response = await fetch('/api/submit-form', {
             method: 'POST',
-            body: formData
+            body: dataToSend
         });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Сервер вернул ошибку: ${response.status} ${errorText}`);
+        }
         
         const result = await response.json();
         
@@ -338,7 +378,7 @@ async function submitFormWithoutSignature() {
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Произошла ошибка при отправке данных');
+        alert('Произошла ошибка при отправке данных: ' + error.message);
         tg.MainButton.hide();
     }
 }
@@ -362,7 +402,7 @@ submitSignatureBtn.addEventListener('click', async () => {
         // Собираем данные формы
         const formData = new FormData(form);
         
-        // Преобразуем данные формы в JSON для отправки
+        // Преобразуем данные формы в объект для отправки
         const formDataObj = {};
         for (const [key, value] of formData.entries()) {
             if (key !== 'photo') {
@@ -370,22 +410,30 @@ submitSignatureBtn.addEventListener('click', async () => {
             }
         }
         
+        // Создаем новый FormData для отправки
+        const dataToSend = new FormData();
+        
         // Добавляем фото, если оно есть
         if (photoInput.files.length > 0) {
-            formData.append('photo', photoInput.files[0]);
+            dataToSend.append('photo', photoInput.files[0]);
         }
         
         // Добавляем данные формы как JSON
-        formData.append('formData', JSON.stringify(formDataObj));
+        dataToSend.append('formData', JSON.stringify(formDataObj));
         
         // Добавляем данные о подписи
-        formData.append('signature', signatureData);
+        dataToSend.append('signature', signatureData);
         
         // Отправляем данные на сервер
         const response = await fetch('/api/submit-form', {
             method: 'POST',
-            body: formData
+            body: dataToSend
         });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Сервер вернул ошибку: ${response.status} ${errorText}`);
+        }
         
         const result = await response.json();
         

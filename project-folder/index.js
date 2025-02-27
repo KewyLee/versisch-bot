@@ -309,6 +309,34 @@ app.get('/', (req, res) => {
   res.send('Сервер работает! Для использования приложения откройте его через Telegram бота.');
 });
 
+// Добавляем маршрут для получения PDF-шаблона
+app.get('/api/get-template-pdf', (req, res) => {
+  try {
+    console.log('Запрос на получение PDF-шаблона');
+    
+    // Проверяем существование шаблона PDF
+    const templatePath = path.join(__dirname, 'BIG_Vermittlervollmacht§34d.pdf');
+    
+    if (!fs.existsSync(templatePath)) {
+      console.error(`Шаблон PDF не найден по пути: ${templatePath}`);
+      return res.status(404).send('PDF шаблон не найден');
+    }
+    
+    // Устанавливаем заголовки для файла
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
+    
+    // Отправляем файл клиенту
+    const fileStream = fs.createReadStream(templatePath);
+    fileStream.pipe(res);
+    
+    console.log('PDF-шаблон успешно отправлен клиенту');
+  } catch (error) {
+    console.error('Ошибка при отправке PDF-шаблона:', error);
+    res.status(500).send('Ошибка при загрузке PDF-шаблона');
+  }
+});
+
 // Запускаем сервер
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
