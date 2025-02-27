@@ -1,26 +1,35 @@
-# Зависимости
+# Dependency directories
 node_modules/
 npm-debug.log
 yarn-debug.log
 yarn-error.log
+package-lock.json
 
-# Переменные окружения
+# Environment variables
 .env
 
-# Директории для загрузок и заполненных форм
+# PDF files
+*.pdf
+
+# Uploaded files
 uploads/
 filled_forms/
 
-# Логи
-logs
-*.log
-
-# Файлы операционной системы
+# OS specific files
 .DS_Store
 Thumbs.db
 
-# Директории IDE
+# IDE directories
 .idea/
 .vscode/
-*.swp
-*.swo 
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+*.temp 

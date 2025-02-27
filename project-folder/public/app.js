@@ -19,6 +19,7 @@ const clearSignatureBtn = document.getElementById('clearSignature');
 const submitSignatureBtn = document.getElementById('submitSignature');
 const birthDateInput = document.getElementById('birthDate');
 const insuranceAddressInput = document.getElementById('insuranceAddress');
+const pdfViewer = document.getElementById('pdfViewer');
 
 // Функция для проверки латинских символов
 function isLatin(text) {
@@ -133,19 +134,34 @@ insuranceAddressInput.addEventListener('blur', function() {
 });
 
 // Инициализация холста для подписи
-let context = signatureCanvas.getContext('2d');
+let context = null;
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
 // Настройка холста для подписи
 function setupSignatureCanvas() {
+    // Получаем контекст
+    context = signatureCanvas.getContext('2d');
+    
+    // Очищаем холст
+    context.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    
     // Задаем стиль линии
     context.lineWidth = 2;
     context.lineCap = 'round';
     context.strokeStyle = 'black';
     
-    // Обработчики событий для рисования
+    // Удаляем предыдущие обработчики, если они были
+    signatureCanvas.removeEventListener('mousedown', startDrawing);
+    signatureCanvas.removeEventListener('mousemove', draw);
+    signatureCanvas.removeEventListener('mouseup', stopDrawing);
+    signatureCanvas.removeEventListener('mouseout', stopDrawing);
+    signatureCanvas.removeEventListener('touchstart', startDrawingTouch);
+    signatureCanvas.removeEventListener('touchmove', drawTouch);
+    signatureCanvas.removeEventListener('touchend', stopDrawing);
+    
+    // Добавляем обработчики событий для рисования
     signatureCanvas.addEventListener('mousedown', startDrawing);
     signatureCanvas.addEventListener('mousemove', draw);
     signatureCanvas.addEventListener('mouseup', stopDrawing);
@@ -162,8 +178,11 @@ function setupSignatureCanvas() {
 
 // Функции для рисования подписи
 function startDrawing(e) {
+    e.preventDefault();
     isDrawing = true;
-    [lastX, lastY] = [e.offsetX, e.offsetY];
+    const rect = signatureCanvas.getBoundingClientRect();
+    lastX = e.clientX - rect.left;
+    lastY = e.clientY - rect.top;
 }
 
 function startDrawingTouch(e) {
@@ -171,21 +190,31 @@ function startDrawingTouch(e) {
     isDrawing = true;
     const rect = signatureCanvas.getBoundingClientRect();
     const touch = e.touches[0];
-    [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
+    lastX = touch.clientX - rect.left;
+    lastY = touch.clientY - rect.top;
 }
 
 function draw(e) {
     if (!isDrawing) return;
+    e.preventDefault();
+    
+    const rect = signatureCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
     context.beginPath();
     context.moveTo(lastX, lastY);
-    context.lineTo(e.offsetX, e.offsetY);
+    context.lineTo(x, y);
     context.stroke();
-    [lastX, lastY] = [e.offsetX, e.offsetY];
+    
+    lastX = x;
+    lastY = y;
 }
 
 function drawTouch(e) {
     if (!isDrawing) return;
     e.preventDefault();
+    
     const rect = signatureCanvas.getBoundingClientRect();
     const touch = e.touches[0];
     const x = touch.clientX - rect.left;
@@ -195,7 +224,9 @@ function drawTouch(e) {
     context.moveTo(lastX, lastY);
     context.lineTo(x, y);
     context.stroke();
-    [lastX, lastY] = [x, y];
+    
+    lastX = x;
+    lastY = y;
 }
 
 function stopDrawing() {
@@ -203,12 +234,34 @@ function stopDrawing() {
 }
 
 function clearSignature() {
-    context.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    if (context) {
+        context.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    }
 }
 
 // Функция для получения данных подписи
 function getSignatureData() {
     return signatureCanvas.toDataURL('image/png');
+}
+
+// Создаем простой PDF для отображения
+function createAndShowPdf() {
+    // Создаем div для эмуляции PDF
+    pdfViewer.innerHTML = '';
+    
+    const pdfContent = document.createElement('div');
+    pdfContent.className = 'pdf-content';
+    pdfContent.innerHTML = `
+        <h3>Документ для подтверждения</h3>
+        <p>Имя, Фамилия: ${fullNameInput.value}</p>
+        <p>Фамилия при рождении: ${birthSurnameInput.value}</p>
+        <p>Дата рождения: ${birthDateInput.value}</p>
+        <p>Родной город: ${hometownInput.value}</p>
+        <p>Email: ${emailInput.value}</p>
+        <p>Телефон: ${phoneInput.value}</p>
+    `;
+    
+    pdfViewer.appendChild(pdfContent);
 }
 
 // Обработка отправки формы
@@ -230,38 +283,41 @@ form.addEventListener('submit', async (e) => {
     form.classList.add('hidden');
     pdfSection.classList.remove('hidden');
     
+    // Создаем и показываем PDF
+    createAndShowPdf();
+    
     // Настраиваем холст для подписи
     setupSignatureCanvas();
 });
 
 // Функция для отправки формы без подписи
 async function submitFormWithoutSignature() {
-    // Показываем индикатор загрузки
-    tg.MainButton.setText('Отправка...');
-    tg.MainButton.show();
-    tg.MainButton.disable();
-    
-    // Собираем данные формы
-    const formData = new FormData(form);
-    
-    // Преобразуем данные формы в JSON для отправки
-    const formDataObj = {};
-    for (const [key, value] of formData.entries()) {
-        if (key !== 'photo') {
-            formDataObj[key] = value;
-        }
-    }
-    
-    // Добавляем фото, если оно есть
-    if (photoInput.files.length > 0) {
-        formData.append('photo', photoInput.files[0]);
-    }
-    
-    // Добавляем данные формы как JSON
-    formData.append('formData', JSON.stringify(formDataObj));
-    
-    // Отправляем данные на сервер
     try {
+        // Показываем индикатор загрузки
+        tg.MainButton.setText('Отправка...');
+        tg.MainButton.show();
+        tg.MainButton.disable();
+        
+        // Собираем данные формы
+        const formData = new FormData(form);
+        
+        // Преобразуем данные формы в JSON для отправки
+        const formDataObj = {};
+        for (const [key, value] of formData.entries()) {
+            if (key !== 'photo') {
+                formDataObj[key] = value;
+            }
+        }
+        
+        // Добавляем фото, если оно есть
+        if (photoInput.files.length > 0) {
+            formData.append('photo', photoInput.files[0]);
+        }
+        
+        // Добавляем данные формы как JSON
+        formData.append('formData', JSON.stringify(formDataObj));
+        
+        // Отправляем данные на сервер
         const response = await fetch('/api/submit-form', {
             method: 'POST',
             body: formData
@@ -289,44 +345,43 @@ async function submitFormWithoutSignature() {
 
 // Обработка подтверждения подписи
 submitSignatureBtn.addEventListener('click', async () => {
-    // Проверяем, что подпись не пустая
-    const signatureData = getSignatureData();
-    const emptySignature = signatureCanvas.toDataURL('image/png');
-    
-    if (signatureData === emptySignature || !hasSignature()) {
-        alert('Пожалуйста, поставьте подпись перед отправкой');
-        return;
-    }
-    
-    // Показываем индикатор загрузки
-    tg.MainButton.setText('Отправка...');
-    tg.MainButton.show();
-    tg.MainButton.disable();
-    
-    // Собираем данные формы
-    const formData = new FormData(form);
-    
-    // Преобразуем данные формы в JSON для отправки
-    const formDataObj = {};
-    for (const [key, value] of formData.entries()) {
-        if (key !== 'photo') {
-            formDataObj[key] = value;
-        }
-    }
-    
-    // Добавляем фото, если оно есть
-    if (photoInput.files.length > 0) {
-        formData.append('photo', photoInput.files[0]);
-    }
-    
-    // Добавляем данные формы как JSON
-    formData.append('formData', JSON.stringify(formDataObj));
-    
-    // Добавляем данные о подписи
-    formData.append('signature', signatureData);
-    
-    // Отправляем данные на сервер
     try {
+        // Проверяем, что подпись не пустая
+        if (!hasSignature()) {
+            alert('Пожалуйста, поставьте подпись перед отправкой');
+            return;
+        }
+        
+        const signatureData = getSignatureData();
+        
+        // Показываем индикатор загрузки
+        tg.MainButton.setText('Отправка...');
+        tg.MainButton.show();
+        tg.MainButton.disable();
+        
+        // Собираем данные формы
+        const formData = new FormData(form);
+        
+        // Преобразуем данные формы в JSON для отправки
+        const formDataObj = {};
+        for (const [key, value] of formData.entries()) {
+            if (key !== 'photo') {
+                formDataObj[key] = value;
+            }
+        }
+        
+        // Добавляем фото, если оно есть
+        if (photoInput.files.length > 0) {
+            formData.append('photo', photoInput.files[0]);
+        }
+        
+        // Добавляем данные формы как JSON
+        formData.append('formData', JSON.stringify(formDataObj));
+        
+        // Добавляем данные о подписи
+        formData.append('signature', signatureData);
+        
+        // Отправляем данные на сервер
         const response = await fetch('/api/submit-form', {
             method: 'POST',
             body: formData
@@ -347,22 +402,26 @@ submitSignatureBtn.addEventListener('click', async () => {
         }
     } catch (error) {
         console.error('Error:', error);
-        alert('Произошла ошибка при отправке данных');
+        alert('Произошла ошибка при отправке данных: ' + error.message);
         tg.MainButton.hide();
     }
 });
 
 // Проверка наличия подписи
 function hasSignature() {
-    const canvas = signatureCanvas;
-    const context = canvas.getContext('2d');
-    const pixelData = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    if (!context) return false;
     
-    // Проверяем, есть ли непрозрачные пиксели (подпись)
-    for (let i = 3; i < pixelData.length; i += 4) {
-        if (pixelData[i] > 0) {
-            return true;
+    try {
+        const pixelData = context.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height).data;
+        
+        // Проверяем, есть ли непрозрачные пиксели (подпись)
+        for (let i = 3; i < pixelData.length; i += 4) {
+            if (pixelData[i] > 0) {
+                return true;
+            }
         }
+    } catch (e) {
+        console.error('Ошибка при проверке подписи:', e);
     }
     
     return false;

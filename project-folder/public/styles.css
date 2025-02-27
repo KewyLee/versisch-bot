@@ -108,9 +108,26 @@ button:hover {
     margin: 20px 0;
     min-height: 300px;
     background-color: #f9f9f9;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    padding: 20px;
+    overflow: auto;
+}
+
+.pdf-content {
+    padding: 15px;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-content h3 {
+    margin-bottom: 15px;
+    text-align: center;
+    color: #333;
+}
+
+.pdf-content p {
+    margin-bottom: 8px;
+    line-height: 1.6;
 }
 
 /* Стили для текста согласия */
@@ -133,20 +150,30 @@ button:hover {
     margin-top: 20px;
 }
 
+.signature-area {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 10px;
+    background-color: #fff;
+    margin: 10px 0;
+}
+
 #signatureCanvas {
     width: 100%;
     height: 150px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
     background-color: #fff;
-    margin: 10px 0;
+    touch-action: none; /* Предотвращаем прокрутку страницы при рисовании на мобильных устройствах */
+    display: block; /* Устраняем лишние отступы */
 }
 
 .signature-actions {
     display: flex;
     gap: 10px;
+    margin-top: 15px;
 }
 
 .signature-actions button {
     flex: 1;
+    padding: 12px 0;
+    font-size: 15px;
 }
