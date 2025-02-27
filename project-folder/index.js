@@ -8,59 +8,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Функция для создания шаблона PDF, если он не существует
-async function createTemplatePdfIfNotExists(templatePath) {
-  if (!fs.existsSync(templatePath)) {
-    console.log(`Шаблон PDF не найден по пути: ${templatePath}, создаем новый шаблон...`);
-    
-    try {
-      // Создаем новый PDF документ
-      const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage([595, 842]); // A4 размер
-      
-      // Добавляем текст на страницу (только латиница для избежания проблем с кодировкой)
-      const { width, height } = page.getSize();
-      page.drawText('Template Form', { x: 100, y: height - 100, size: 16 });
-      page.drawText('Full Name: ___________________', { x: 100, y: height - 150, size: 12 });
-      page.drawText('Birth Surname: ___________________', { x: 100, y: height - 180, size: 12 });
-      page.drawText('Date of Birth: ___________________', { x: 100, y: height - 210, size: 12 });
-      page.drawText('Hometown: ___________________', { x: 100, y: height - 240, size: 12 });
-      page.drawText('Address: ___________________', { x: 100, y: height - 270, size: 12 });
-      page.drawText('Email: ___________________', { x: 100, y: height - 300, size: 12 });
-      page.drawText('Phone: ___________________', { x: 100, y: height - 330, size: 12 });
-      page.drawText('Signature:', { x: 100, y: height - 380, size: 12 });
-      
-      // Создаем прямоугольник для подписи
-      page.drawRectangle({
-        x: 100,
-        y: height - 480,
-        width: 200,
-        height: 80,
-        borderColor: { r: 0/255, g: 0/255, b: 0/255 },
-        borderWidth: 1,
-      });
-      
-      // Сохраняем PDF
-      const pdfBytes = await pdfDoc.save();
-      
-      // Создаем директорию, если она не существует
-      const dir = path.dirname(templatePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      
-      // Записываем файл
-      fs.writeFileSync(templatePath, pdfBytes);
-      console.log(`Шаблон PDF успешно создан по пути: ${templatePath}`);
-      return true;
-    } catch (error) {
-      console.error(`Ошибка при создании шаблона PDF: ${error.message}`);
-      return false;
-    }
-  }
-  return true;
-}
-
 // Получаем конфигурацию из переменных окружения
 const config = {
   botToken: process.env.BOT_TOKEN || '7557471395:AAFNHZlMynXghYKmr16XWOWVfUpgAqP_Sh8', // Токен Telegram бота
@@ -204,17 +151,12 @@ async function fillPdfWithData(formData, signatureData) {
     console.log('Начало заполнения PDF данными');
     console.log('Путь к шаблону PDF:', config.templatePdfPath);
     
-    // Проверяем существование шаблона PDF и создаем его, если нет
+    // Проверяем существование PDF шаблона
     if (!fs.existsSync(config.templatePdfPath)) {
-      console.log(`Шаблон PDF не найден по пути: ${config.templatePdfPath}, создаем новый...`);
-      const templateCreated = await createTemplatePdfIfNotExists(config.templatePdfPath);
-      if (!templateCreated) {
-        throw new Error(`Не удалось создать шаблон PDF`);
-      }
-      console.log('Шаблон PDF успешно создан');
-    } else {
-      console.log('Шаблон PDF найден, приступаем к заполнению');
+      throw new Error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
     }
+    
+    console.log('Шаблон PDF найден, приступаем к заполнению');
     
     // Загружаем шаблон PDF
     const pdfBytes = fs.readFileSync(config.templatePdfPath);
@@ -238,16 +180,17 @@ async function fillPdfWithData(formData, signatureData) {
       const fontSize = 12;
       const textOptions = { size: fontSize };
       
-      // Определяем координаты полей на основе вашего PDF-шаблона
+      // Определяем координаты полей для Vermittlervollmacht PDF
+      // Эти координаты нужно настроить под реальный PDF
       const fieldPositions = {
-        fullName: { x: 200, y: height - 150 },
-        birthSurname: { x: 200, y: height - 180 },
-        birthDate: { x: 200, y: height - 210 },
-        hometown: { x: 200, y: height - 240 },
-        insuranceAddress: { x: 200, y: height - 270 },
-        email: { x: 200, y: height - 300 },
-        phone: { x: 200, y: height - 330 },
-        signature: { x: 100, y: 100, width: 200, height: 80 } // Подпись внизу документа
+        fullName: { x: 120, y: height - 250 },      // Позиция для полного имени
+        birthSurname: { x: 120, y: height - 280 },  // Позиция для фамилии при рождении
+        birthDate: { x: 350, y: height - 250 },     // Позиция для даты рождения
+        hometown: { x: 350, y: height - 280 },      // Позиция для родного города
+        insuranceAddress: { x: 120, y: height - 310 }, // Позиция для адреса
+        email: { x: 120, y: height - 340 },         // Позиция для email
+        phone: { x: 350, y: height - 340 },         // Позиция для телефона
+        signature: { x: 120, y: height - 620, width: 200, height: 80 } // Позиция для подписи над "Unterschrift des Versicherten"
       };
       
       console.log('Заполнение полей PDF данными из формы');
@@ -294,7 +237,7 @@ async function fillPdfWithData(formData, signatureData) {
       // Добавляем подпись, если она есть
       if (signatureData) {
         try {
-          console.log('Добавление подписи в PDF');
+          console.log('Добавление подписи в PDF над строкой "Unterschrift des Versicherten"');
           
           // Удаляем префикс data:image/png;base64, если он есть
           const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
@@ -304,7 +247,7 @@ async function fillPdfWithData(formData, signatureData) {
           const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
           const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
           
-          // Добавляем изображение подписи в PDF в нижней части документа
+          // Добавляем изображение подписи в PDF над строкой "Unterschrift des Versicherten"
           firstPage.drawImage(signatureImage, {
             x: fieldPositions.signature.x,
             y: fieldPositions.signature.y,
@@ -391,40 +334,22 @@ app.get('/api/get-template-pdf', (req, res) => {
     console.log('Запрос на получение PDF-шаблона');
     console.log('Искомый путь к шаблону:', config.templatePdfPath);
     
-    // Используем конфигурационный путь к шаблону
+    // Проверяем существование шаблона
     if (!fs.existsSync(config.templatePdfPath)) {
       console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
-      // Пробуем создать шаблон
-      createTemplatePdfIfNotExists(config.templatePdfPath).then(created => {
-        if (created) {
-          console.log('Шаблон успешно создан, отправляем его клиенту');
-          // Устанавливаем заголовки для файла
-          res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
-          
-          // Отправляем файл клиенту
-          const fileStream = fs.createReadStream(config.templatePdfPath);
-          fileStream.pipe(res);
-        } else {
-          console.error('Не удалось создать PDF-шаблон');
-          res.status(404).send('Не удалось создать PDF шаблон');
-        }
-      }).catch(err => {
-        console.error('Ошибка при создании шаблона:', err);
-        res.status(500).send('Ошибка при создании шаблона PDF');
-      });
-    } else {
-      console.log('Шаблон PDF найден, отправляем его клиенту');
-      // Устанавливаем заголовки для файла
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
-      
-      // Отправляем файл клиенту
-      const fileStream = fs.createReadStream(config.templatePdfPath);
-      fileStream.pipe(res);
-      
-      console.log('PDF-шаблон успешно отправлен клиенту');
+      return res.status(404).send('PDF шаблон не найден. Пожалуйста, убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.');
     }
+    
+    console.log('Шаблон PDF найден, отправляем его клиенту');
+    // Устанавливаем заголовки для файла
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
+    
+    // Отправляем файл клиенту
+    const fileStream = fs.createReadStream(config.templatePdfPath);
+    fileStream.pipe(res);
+    
+    console.log('PDF-шаблон успешно отправлен клиенту');
   } catch (error) {
     console.error('Ошибка при отправке PDF-шаблона:', error);
     res.status(500).send('Ошибка при загрузке PDF-шаблона');
@@ -449,21 +374,17 @@ app.listen(PORT, async () => {
     console.log(`Создана директория для загрузок: ${uploadDir}`);
   }
   
-  // Создаем шаблон PDF при запуске, если его нет
+  // Проверяем существование шаблона PDF
   try {
     const templateExists = fs.existsSync(config.templatePdfPath);
-    console.log(`Шаблон PDF ${templateExists ? 'существует' : 'не существует'} по пути: ${config.templatePdfPath}`);
-    
-    if (!templateExists) {
-      const created = await createTemplatePdfIfNotExists(config.templatePdfPath);
-      if (created) {
-        console.log(`Шаблон PDF успешно создан при запуске сервера`);
-      } else {
-        console.error(`Не удалось создать шаблон PDF при запуске сервера`);
-      }
+    if (templateExists) {
+      console.log(`Шаблон PDF найден по пути: ${config.templatePdfPath}`);
+    } else {
+      console.error(`ВНИМАНИЕ: Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
+      console.error(`Убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в корневую директорию проекта`);
     }
   } catch (error) {
-    console.error(`Ошибка при проверке/создании шаблона PDF: ${error.message}`);
+    console.error(`Ошибка при проверке шаблона PDF: ${error.message}`);
   }
 });
 
