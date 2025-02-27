@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Форма заявки</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Форма заявки</h1>
+        <form id="applicationForm">
+            <div class="form-group">
+                <label for="companyName">Название фирмы (не обязательно)</label>
+                <input type="text" id="companyName" name="companyName">
+            </div>
+            
+            <div class="form-group">
+                <label for="companyAddress">Адрес фирмы (не обязательно)</label>
+                <input type="text" id="companyAddress" name="companyAddress">
+            </div>
+            
+            <div class="form-group">
+                <label for="startDate">Дата начала работы (не обязательно)</label>
+                <input type="date" id="startDate" name="startDate">
+            </div>
+            
+            <div class="form-group">
+                <label for="fullName">Имя, Фамилия (латиницей)*</label>
+                <input type="text" id="fullName" name="fullName" required>
+                <div class="error-message" id="fullNameError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="birthSurname">Фамилия при рождении (латиницей)*</label>
+                <input type="text" id="birthSurname" name="birthSurname" required>
+                <div class="error-message" id="birthSurnameError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="birthDate">Дата рождения*</label>
+                <input type="date" id="birthDate" name="birthDate" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="hometown">Родной город (латиницей)*</label>
+                <input type="text" id="hometown" name="hometown" required>
+                <div class="error-message" id="hometownError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="insuranceAddress">Адрес получения страховки (не обязательно)</label>
+                <input type="text" id="insuranceAddress" name="insuranceAddress">
+            </div>
+            
+            <div class="form-group">
+                <label for="maritalStatus">Семейное положение*</label>
+                <select id="maritalStatus" name="maritalStatus" required>
+                    <option value="">Выберите...</option>
+                    <option value="single">Холост/Не замужем</option>
+                    <option value="married">Женат/Замужем</option>
+                    <option value="divorced">Разведен(а)</option>
+                    <option value="widowed">Вдовец/Вдова</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Электронная почта*</label>
+                <input type="email" id="email" name="email" required>
+                <div class="error-message" id="emailError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="phone">Номер телефона*</label>
+                <input type="tel" id="phone" name="phone" required>
+                <div class="error-message" id="phoneError"></div>
+            </div>
+            
+            <div class="form-group">
+                <label for="photo">Фотография у стены*</label>
+                <input type="file" id="photo" name="photo" accept="image/*" required>
+                <div class="preview" id="photoPreview"></div>
+            </div>
+            
+            <div class="form-group">
+                <button type="submit" id="submitBtn">Отправить</button>
+            </div>
+        </form>
+        
+        <!-- Секция для отображения PDF и подписи -->
+        <div id="pdfSection" class="hidden">
+            <h2>Подтверждение документа</h2>
+            <div id="pdfViewer"></div>
+            
+            <div class="signature-container">
+                <h3>Поставьте вашу подпись ниже:</h3>
+                <canvas id="signatureCanvas" width="300" height="150"></canvas>
+                <div class="signature-actions">
+                    <button id="clearSignature">Очистить</button>
+                    <button id="submitSignature">Подтвердить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
