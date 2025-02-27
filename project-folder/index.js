@@ -63,11 +63,14 @@ bot.start((ctx) => {
   
   console.log(`Пользователь начал взаимодействие с ботом: ID ${userId}, username: @${userName}, имя: ${firstName} ${lastName}`);
   
-  ctx.reply('Добро пожаловать! Для заполнения формы нажмите на кнопку ниже:', {
+  ctx.reply('Добро пожаловать! Для заполнения формы выберите тип:', {
     reply_markup: {
       inline_keyboard: [
-        [{ text: 'Заполнить форму', web_app: { 
+        [{ text: 'Стандартная форма', web_app: { 
           url: `${config.webappUrl}?userId=${userId}&username=${userName}&name=${encodeURIComponent(firstName + ' ' + lastName)}` 
+        } }],
+        [{ text: 'Доверенность BIG', web_app: { 
+          url: `${config.webappUrl}/vollmacht?userId=${userId}&username=${userName}&name=${encodeURIComponent(firstName + ' ' + lastName)}` 
         } }]
       ]
     }
@@ -187,28 +190,54 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
   }
 });
 
+// Маршрут для формы доверенности BIG
+app.get('/vollmacht', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'vollmacht.html'));
+});
+
+// Добавляем маршрут для проверки работоспособности
+app.get('/', (req, res) => {
+  res.send('Сервер работает! Для использования приложения откройте его через Telegram бота.');
+});
+
+// Добавляем маршрут для получения PDF-шаблона
+app.get('/api/get-template-pdf', (req, res) => {
+  try {
+    console.log('Запрос на получение PDF-шаблона');
+    console.log('Искомый путь к шаблону:', config.templatePdfPath);
+    
+    // Проверяем существование шаблона
+    if (!fs.existsSync(config.templatePdfPath)) {
+      console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
+      return res.status(404).send('PDF шаблон не найден. Пожалуйста, убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.');
+    }
+    
+    console.log('Шаблон PDF найден, отправляем его клиенту');
+    // Устанавливаем заголовки для файла
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
+    
+    // Отправляем файл клиенту
+    const fileStream = fs.createReadStream(config.templatePdfPath);
+    fileStream.pipe(res);
+    
+    console.log('PDF-шаблон успешно отправлен клиенту');
+  } catch (error) {
+    console.error('Ошибка при отправке PDF-шаблона:', error);
+    res.status(500).send('Ошибка при загрузке PDF-шаблона');
+  }
+});
+
 // Функция для заполнения PDF данными - используем заполнение полей формы вместо наложения текста
 async function fillPdfWithData(formData, signatureData) {
   try {
-    console.log('Начало заполнения PDF данными');
+    console.log('Начало заполнения PDF данными по шаблону');
     console.log('Путь к шаблону PDF:', config.templatePdfPath);
     
     // Проверяем существование PDF шаблона
     if (!fs.existsSync(config.templatePdfPath)) {
       console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
-      console.log('Попытка создать временный базовый шаблон...');
-      
-      // Создаем временный базовый шаблон
-      const tempPath = path.join(__dirname, 'temp_template.pdf');
-      const created = await createBasicPdfTemplate(tempPath);
-      
-      if (created) {
-        console.log(`Базовый PDF-шаблон успешно создан по пути: ${tempPath}`);
-        config.templatePdfPath = tempPath;
-        console.log(`Используем временный шаблон: ${config.templatePdfPath}`);
-      } else {
-        throw new Error(`Не удалось создать базовый PDF-шаблон для заполнения данными`);
-      }
+      throw new Error(`Шаблон PDF не найден. Убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.`);
     }
     
     console.log('Шаблон PDF найден, приступаем к заполнению');
@@ -231,17 +260,20 @@ async function fillPdfWithData(formData, signatureData) {
       const { width, height } = firstPage.getSize();
       console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
       
-      // Добавляем текстовые данные на страницу с точными координатами из примера
-      // Используем аккуратное наложение текста вместо полей формы, так как PDF-lib не поддерживает
-      // манипуляцию существующими полями формы в некоторых форматах PDF
+      // Настраиваем шрифт и опции текста
+      const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const fontSize = 11;
       const textOptions = { 
         size: fontSize,
+        font: helveticaFont,
         color: rgb(0, 0, 0)
       };
       
-      // Определяем координаты полей для PDF на основе примера
-      const fieldPositions = {
+      // Определяем координаты полей для PDF
+      // В зависимости от формы используем разные наборы координат
+      
+      // Для стандартной формы
+      let fieldPositions = {
         fullName: { x: 123, y: height - 183 },      // Имя Фамилия
         birthSurname: { x: 123, y: height - 203 },  // Фамилия при рождении
         birthDate: { x: 266, y: height - 183 },     // Дата рождения
@@ -252,48 +284,156 @@ async function fillPdfWithData(formData, signatureData) {
         signature: { x: 93, y: height - 412, width: 120, height: 45 } // Позиция для подписи
       };
       
-      console.log('Заполнение полей PDF данными из формы');
-      
-      // Заполняем поля данными
-      if (formData.fullName) {
-        firstPage.drawText(formData.fullName, { x: fieldPositions.fullName.x, y: fieldPositions.fullName.y, ...textOptions });
-        console.log(`Заполнено поле fullName: ${formData.fullName}`);
+      // Для формы доверенности BIG (если в данных есть специальное поле)
+      if (formData.isVollmachtForm) {
+        fieldPositions = {
+          // Данные застрахованного лица (Versicherten)
+          versichertenName: { x: 100, y: height - 195 },        // Имя
+          versichertenVorname: { x: 180, y: height - 195 },     // Фамилия
+          versichertenGeburtsdatum: { x: 240, y: height - 195 }, // Дата рождения
+          versichertenGeburtsname: { x: 100, y: height - 215 },  // Фамилия при рождении
+          versichertenGeburtsort: { x: 240, y: height - 215 },   // Место рождения
+          versichertenStrasse: { x: 100, y: height - 235 },      // Улица
+          versichertenHausnummer: { x: 190, y: height - 235 },   // Номер дома
+          versichertenPLZ: { x: 100, y: height - 250 },          // Индекс
+          versichertenOrt: { x: 160, y: height - 250 },          // Город
+          versichertenEmail: { x: 100, y: height - 275 },        // Email
+          versichertenTelefon: { x: 240, y: height - 275 },      // Телефон
+          
+          // Данные партнера по продажам (Vertriebspartner)
+          vertriebspartnerName: { x: 100, y: height - 325 },      // Имя
+          vertriebspartnerVorname: { x: 240, y: height - 325 },   // Фамилия
+          vertriebspartnerFirma: { x: 100, y: height - 345 },     // Компания
+          vertriebspartnerStrasse: { x: 100, y: height - 365 },   // Улица
+          vertriebspartnerHausnummer: { x: 190, y: height - 365 },// Номер дома
+          vertriebspartnerPLZ: { x: 100, y: height - 385 },       // Индекс
+          vertriebspartnerOrt: { x: 160, y: height - 385 },       // Город
+          
+          // Место, дата и подпись
+          ort: { x: 80, y: height - 460 },                     // Место
+          datum: { x: 200, y: height - 460 },                  // Дата
+          signature: { x: 80, y: height - 500, width: 150, height: 60 } // Подпись
+        };
       }
       
-      if (formData.birthSurname) {
-        firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
-        console.log(`Заполнено поле birthSurname: ${formData.birthSurname}`);
+      console.log('Наложение данных на PDF шаблон...');
+      
+      // Функция для безопасного наложения текста с проверкой данных
+      function drawTextSafely(fieldName, text, position) {
+        if (text && position) {
+          firstPage.drawText(text, { 
+            x: position.x, 
+            y: position.y, 
+            ...textOptions 
+          });
+          console.log(`Наложено поле ${fieldName}: ${text}`);
+        }
       }
       
-      if (formData.birthDate) {
-        firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
-        console.log(`Заполнено поле birthDate: ${formData.birthDate}`);
-      }
-      
-      if (formData.hometown) {
-        firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
-        console.log(`Заполнено поле hometown: ${formData.hometown}`);
-      }
-      
-      // Заполняем адрес только если он указан
-      if (formData.insuranceAddress && formData.insuranceAddress.trim() !== '') {
-        firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.insuranceAddress.x, y: fieldPositions.insuranceAddress.y, ...textOptions });
-        console.log(`Заполнено поле insuranceAddress: ${formData.insuranceAddress}`);
+      if (formData.isVollmachtForm) {
+        // Обработка данных формы доверенности BIG
+        
+        // Формируем имя и фамилию из полного имени, если это необходимо
+        if (formData.fullName) {
+          const nameParts = formData.fullName.split(' ');
+          if (nameParts.length > 1) {
+            const lastName = nameParts[0];
+            const firstName = nameParts.slice(1).join(' ');
+            drawTextSafely('versichertenName', lastName, fieldPositions.versichertenName);
+            drawTextSafely('versichertenVorname', firstName, fieldPositions.versichertenVorname);
+          } else {
+            drawTextSafely('versichertenName', formData.fullName, fieldPositions.versichertenName);
+          }
+        }
+        
+        // Другие поля из формы
+        drawTextSafely('versichertenGeburtsdatum', formData.birthDate, fieldPositions.versichertenGeburtsdatum);
+        drawTextSafely('versichertenGeburtsname', formData.birthSurname, fieldPositions.versichertenGeburtsname);
+        drawTextSafely('versichertenGeburtsort', formData.hometown, fieldPositions.versichertenGeburtsort);
+        
+        // Обработка адреса, если он есть
+        if (formData.insuranceAddress) {
+          // Попытка разделить адрес на компоненты
+          const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
+          if (addressMatch) {
+            drawTextSafely('versichertenStrasse', addressMatch[1].trim(), fieldPositions.versichertenStrasse);
+            drawTextSafely('versichertenHausnummer', addressMatch[2], fieldPositions.versichertenHausnummer);
+            drawTextSafely('versichertenPLZ', addressMatch[3], fieldPositions.versichertenPLZ);
+            drawTextSafely('versichertenOrt', addressMatch[4], fieldPositions.versichertenOrt);
+          } else {
+            // Если формат не распознан, просто разместим полный адрес в поле улицы
+            drawTextSafely('versichertenStrasse', formData.insuranceAddress, fieldPositions.versichertenStrasse);
+          }
+        }
+        
+        drawTextSafely('versichertenEmail', formData.email, fieldPositions.versichertenEmail);
+        drawTextSafely('versichertenTelefon', formData.phone, fieldPositions.versichertenTelefon);
+        
+        // Добавляем фиксированные значения для данных партнера
+        drawTextSafely('vertriebspartnerName', 'Svechynskyy', fieldPositions.vertriebspartnerName);
+        drawTextSafely('vertriebspartnerVorname', 'Igor', fieldPositions.vertriebspartnerVorname);
+        drawTextSafely('vertriebspartnerFirma', 'Svechynskyy KG', fieldPositions.vertriebspartnerFirma);
+        drawTextSafely('vertriebspartnerStrasse', 'Hauptstrasse', fieldPositions.vertriebspartnerStrasse);
+        drawTextSafely('vertriebspartnerHausnummer', '60', fieldPositions.vertriebspartnerHausnummer);
+        drawTextSafely('vertriebspartnerPLZ', '50126', fieldPositions.vertriebspartnerPLZ);
+        drawTextSafely('vertriebspartnerOrt', 'Bergheim', fieldPositions.vertriebspartnerOrt);
+        
+        // Добавляем текущую дату, если даты нет в данных
+        const today = new Date();
+        const formattedDate = today.toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        }).replace(/\//g, '.');
+        
+        // Место и дата
+        drawTextSafely('ort', formData.ort || 'Bergheim', fieldPositions.ort);
+        drawTextSafely('datum', formData.datum || formattedDate, fieldPositions.datum);
       } else {
-        console.log('Поле insuranceAddress не заполнено, так как оно пустое');
+        // Стандартная форма - заполняем поля как раньше
+        console.log('Заполнение полей PDF данными из формы');
+        
+        // Заполняем поля данными
+        if (formData.fullName) {
+          firstPage.drawText(formData.fullName, { x: fieldPositions.fullName.x, y: fieldPositions.fullName.y, ...textOptions });
+          console.log(`Заполнено поле fullName: ${formData.fullName}`);
+        }
+        
+        if (formData.birthSurname) {
+          firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
+          console.log(`Заполнено поле birthSurname: ${formData.birthSurname}`);
+        }
+        
+        if (formData.birthDate) {
+          firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
+          console.log(`Заполнено поле birthDate: ${formData.birthDate}`);
+        }
+        
+        if (formData.hometown) {
+          firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
+          console.log(`Заполнено поле hometown: ${formData.hometown}`);
+        }
+        
+        // Заполняем адрес только если он указан
+        if (formData.insuranceAddress && formData.insuranceAddress.trim() !== '') {
+          firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.insuranceAddress.x, y: fieldPositions.insuranceAddress.y, ...textOptions });
+          console.log(`Заполнено поле insuranceAddress: ${formData.insuranceAddress}`);
+        } else {
+          console.log('Поле insuranceAddress не заполнено, так как оно пустое');
+        }
+        
+        if (formData.email) {
+          firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
+          console.log(`Заполнено поле email: ${formData.email}`);
+        }
+        
+        if (formData.phone) {
+          firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
+          console.log(`Заполнено поле phone: ${formData.phone}`);
+        }
       }
       
-      if (formData.email) {
-        firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
-        console.log(`Заполнено поле email: ${formData.email}`);
-      }
-      
-      if (formData.phone) {
-        firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
-        console.log(`Заполнено поле phone: ${formData.phone}`);
-      }
-      
-      // Добавляем подпись, если она есть (только изображение, без дублирования соглашения)
+      // Добавляем подпись, если она есть (для обеих форм)
       if (signatureData) {
         try {
           console.log('Добавление подписи в PDF');
@@ -306,12 +446,15 @@ async function fillPdfWithData(formData, signatureData) {
           const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
           const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
           
-          // Добавляем только изображение подписи без дублирования соглашения
+          // Выбираем позицию для подписи в зависимости от типа формы
+          const signaturePosition = fieldPositions.signature;
+          
+          // Добавляем только изображение подписи
           firstPage.drawImage(signatureImage, {
-            x: fieldPositions.signature.x,
-            y: fieldPositions.signature.y,
-            width: fieldPositions.signature.width,
-            height: fieldPositions.signature.height,
+            x: signaturePosition.x,
+            y: signaturePosition.y,
+            width: signaturePosition.width,
+            height: signaturePosition.height,
           });
           
           console.log('Подпись успешно добавлена в PDF');
@@ -413,329 +556,11 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
   }
 }
 
-// Добавляем маршрут для проверки работоспособности
-app.get('/', (req, res) => {
-  res.send('Сервер работает! Для использования приложения откройте его через Telegram бота.');
-});
-
-// Добавляем маршрут для получения PDF-шаблона
-app.get('/api/get-template-pdf', (req, res) => {
-  try {
-    console.log('Запрос на получение PDF-шаблона');
-    console.log('Искомый путь к шаблону:', config.templatePdfPath);
-    
-    // Проверяем существование шаблона
-    if (!fs.existsSync(config.templatePdfPath)) {
-      console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
-      return res.status(404).send('PDF шаблон не найден. Пожалуйста, убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.');
-    }
-    
-    console.log('Шаблон PDF найден, отправляем его клиенту');
-    // Устанавливаем заголовки для файла
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline; filename=template.pdf');
-    
-    // Отправляем файл клиенту
-    const fileStream = fs.createReadStream(config.templatePdfPath);
-    fileStream.pipe(res);
-    
-    console.log('PDF-шаблон успешно отправлен клиенту');
-  } catch (error) {
-    console.error('Ошибка при отправке PDF-шаблона:', error);
-    res.status(500).send('Ошибка при загрузке PDF-шаблона');
-  }
-});
-
-// Функция для создания базового PDF-шаблона, если основной не найден
-async function createBasicPdfTemplate(outputPath) {
-  try {
-    console.log(`Создаю базовый PDF-шаблон по пути: ${outputPath}`);
-    
-    // Создаем новый PDF документ
-    const pdfDoc = await PDFDocument.create();
-    
-    // Добавляем страницу формата A4
-    const page = pdfDoc.addPage([595, 842]);
-    
-    // Получаем размеры страницы
-    const { width, height } = page.getSize();
-    
-    // Загружаем стандартный шрифт
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    
-    // Добавляем логотип BIG в правый верхний угол (заглушка - синий прямоугольник)
-    page.drawRectangle({
-      x: width - 100,
-      y: height - 80,
-      width: 80,
-      height: 60,
-      color: rgb(0, 0, 0.8),
-    });
-    
-    // Добавляем текст "BIG" внутри логотипа
-    page.drawText("BIG", {
-      x: width - 80,
-      y: height - 50,
-      size: 24,
-      font: boldFont,
-      color: rgb(1, 1, 1),
-    });
-    
-    // Добавляем заголовок
-    page.drawText('Vollmacht für Vertriebspartner §34d GewO, zurück an die BIG', {
-      x: 30,
-      y: height - 50,
-      size: 14,
-      font: boldFont,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Добавляем адрес компании
-    page.drawText('BIG direkt gesund', {
-      x: 30,
-      y: height - 100,
-      size: 9,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    page.drawText('Rheinische Straße 1', {
-      x: 30,
-      y: height - 110,
-      size: 9,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    page.drawText('44137 Dortmund', {
-      x: 30,
-      y: height - 120,
-      size: 9,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Добавляем дату в правой части
-    const today = new Date();
-    const formattedDate = today.toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).replace(/\//g, '.');
-    
-    page.drawText(formattedDate, {
-      x: width - 100,
-      y: height - 150,
-      size: 11,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Добавляем разделы формы
-    page.drawText('Persönliche Angaben des Versicherten:', {
-      x: 30,
-      y: height - 170,
-      size: 12,
-      font: boldFont,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Добавляем синий цветной блок для заголовка
-    page.drawRectangle({
-      x: 30,
-      y: height - 175,
-      width: width - 60,
-      height: 20,
-      color: rgb(0.1, 0.3, 0.6),
-    });
-    
-    // Добавляем текст заголовка на синем фоне
-    page.drawText('Persönliche Angaben des Versicherten:', {
-      x: 35,
-      y: height - 170,
-      size: 12,
-      font: boldFont,
-      color: rgb(1, 1, 1),
-    });
-    
-    // Добавляем поля для данных
-    const fieldLabels = [
-      { label: 'Name, Vorname:', x: 30, y: height - 195 },
-      { label: 'Geburtsdatum:', x: 230, y: height - 195 },
-      { label: 'Geburtsname:', x: 30, y: height - 215 },
-      { label: 'Geburtsort:', x: 230, y: height - 215 },
-      { label: 'Anschrift:', x: 30, y: height - 235 },
-      { label: 'E-Mail:', x: 30, y: height - 275 },
-      { label: 'Telefon:', x: 230, y: height - 275 }
-    ];
-    
-    // Рисуем метки полей
-    fieldLabels.forEach(field => {
-      page.drawText(field.label, {
-        x: field.x,
-        y: field.y,
-        size: 11,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-    });
-    
-    // Добавляем раздел для данных представителя
-    // Синий блок для заголовка
-    page.drawRectangle({
-      x: 30,
-      y: height - 305,
-      width: width - 60,
-      height: 20,
-      color: rgb(0.1, 0.3, 0.6),
-    });
-    
-    // Текст заголовка на синем фоне
-    page.drawText('Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO:', {
-      x: 35,
-      y: height - 300,
-      size: 12,
-      font: boldFont,
-      color: rgb(1, 1, 1),
-    });
-    
-    // Добавляем поля для данных представителя
-    const agentFieldLabels = [
-      { label: 'Name:', x: 30, y: height - 325 },
-      { label: 'Vorname:', x: 230, y: height - 325 },
-      { label: 'Vermittlernummer:', x: 30, y: height - 345 },
-      { label: 'Straße:', x: 30, y: height - 365 },
-      { label: 'PLZ:', x: 30, y: height - 385 },
-      { label: 'Ort:', x: 100, y: height - 385 }
-    ];
-    
-    // Рисуем метки полей для представителя
-    agentFieldLabels.forEach(field => {
-      page.drawText(field.label, {
-        x: field.x,
-        y: field.y,
-        size: 11,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-    });
-    
-    // Добавляем блок для соглашения
-    // Синий блок для заголовка
-    page.drawRectangle({
-      x: 30,
-      y: height - 415,
-      width: width - 60,
-      height: 20,
-      color: rgb(0.1, 0.3, 0.6),
-    });
-    
-    // Текст заголовка на синем фоне
-    page.drawText('Bevollmächtigung:', {
-      x: 35,
-      y: height - 410,
-      size: 12,
-      font: boldFont,
-      color: rgb(1, 1, 1),
-    });
-    
-    // Текст соглашения (только один раз)
-    const agreementText = 'Hiermit bevollmächtige ich den vorbenannten Vertriebspartner, meine Interessen gegenüber der BIG direkt gesund zu vertreten. Dies umfasst auch die Entgegennahme aller Korrespondenz. Die Bevollmächtigung gilt bis auf Widerruf.';
-    
-    // Разбиваем текст соглашения на несколько строк для лучшей читаемости
-    const words = agreementText.split(' ');
-    let line = '';
-    let yPos = height - 440;
-    
-    for (let i = 0; i < words.length; i++) {
-      const testLine = line + words[i] + ' ';
-      if (testLine.length * 5 > width - 80) { // примерно оцениваем ширину текста
-        page.drawText(line, {
-          x: 35,
-          y: yPos,
-          size: 10,
-          font: font,
-          color: rgb(0, 0, 0),
-        });
-        line = words[i] + ' ';
-        yPos -= 15;
-      } else {
-        line = testLine;
-      }
-    }
-    
-    // Добавляем последнюю строку, если она осталась
-    if (line.trim().length > 0) {
-      page.drawText(line, {
-        x: 35,
-        y: yPos,
-        size: 10,
-        font: font,
-        color: rgb(0, 0, 0),
-      });
-    }
-    
-    // Добавляем место для подписи
-    page.drawText('Unterschrift des Versicherten:', {
-      x: 30,
-      y: height - 480,
-      size: 11,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Рисуем линию для подписи
-    page.drawLine({
-      start: { x: 30, y: height - 500 },
-      end: { x: 200, y: height - 500 },
-      thickness: 1,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Добавляем нижний колонтитул с контактной информацией
-    const footerY = 40;
-    
-    page.drawText('BIG direkt gesund • Rheinische Straße 1 • 44137 Dortmund', {
-      x: 30,
-      y: footerY,
-      size: 8,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    page.drawText('www.big-direkt.de', {
-      x: width - 100,
-      y: footerY,
-      size: 8,
-      font: font,
-      color: rgb(0, 0, 0),
-    });
-    
-    // Сохраняем PDF
-    const pdfBytes = await pdfDoc.save();
-    
-    // Создаем директорию, если она не существует
-    const dir = path.dirname(outputPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    // Записываем файл
-    fs.writeFileSync(outputPath, pdfBytes);
-    console.log(`Базовый PDF-шаблон успешно создан по пути: ${outputPath}`);
-    return true;
-  } catch (error) {
-    console.error(`Ошибка при создании базового PDF-шаблона: ${error.message}`);
-    return false;
-  }
-}
-
 // Запускаем сервер
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`Сервер запущен на порту ${PORT}`);
-  console.log(`Исходный путь к шаблону PDF: ${config.templatePdfPath}`);
+  console.log(`Путь к шаблону PDF: ${config.templatePdfPath}`);
   console.log(`Абсолютный путь к директории приложения: ${__dirname}`);
   
   // Проверка различных возможных мест расположения файла
@@ -766,20 +591,7 @@ app.listen(PORT, async () => {
   if (pdfFound) {
     console.log(`Итоговый путь к шаблону PDF: ${config.templatePdfPath}`);
   } else {
-    console.error('PDF не найден ни по одному из проверенных путей!');
-    console.log('Создаем базовый PDF-шаблон...');
-    
-    // Создаем временный базовый шаблон
-    const tempPath = path.join(__dirname, 'temp_template.pdf');
-    const created = await createBasicPdfTemplate(tempPath);
-    
-    if (created) {
-      console.log(`Базовый PDF-шаблон успешно создан по пути: ${tempPath}`);
-      config.templatePdfPath = tempPath;
-      console.log(`Используем временный шаблон: ${config.templatePdfPath}`);
-    } else {
-      console.error('Не удалось создать базовый PDF-шаблон!');
-    }
+    console.error('PDF не найден ни по одному из проверенных путей! Убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.');
   }
   
   // Проверяем существование директорий

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BIG Vermittlervollmacht</title>
+    <link rel="stylesheet" href="vollmacht-styles.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Vollmacht für Vertriebspartner</h1>
+            <div class="logo">BIG</div>
+        </header>
+
+        <div class="form-container">
+            <form id="vollmachtForm">
+                <input type="hidden" id="isVollmachtForm" name="isVollmachtForm" value="true">
+                
+                <!-- Раздел данных застрахованного лица -->
+                <section class="form-section">
+                    <h2>Persönliche Angaben des Versicherten</h2>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="fullName">Name, Vorname*</label>
+                            <input type="text" id="fullName" name="fullName" required>
+                            <div class="error-message" id="fullNameError"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="birthDate">Geburtsdatum*</label>
+                            <input type="text" id="birthDate" name="birthDate" placeholder="DD.MM.YYYY" required>
+                            <div class="error-message" id="birthDateError"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="birthSurname">Geburtsname</label>
+                            <input type="text" id="birthSurname" name="birthSurname">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="hometown">Geburtsort*</label>
+                            <input type="text" id="hometown" name="hometown" required>
+                            <div class="error-message" id="hometownError"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="insuranceAddress">Anschrift (Straße, Hausnummer, PLZ, Ort)*</label>
+                            <input type="text" id="insuranceAddress" name="insuranceAddress" required placeholder="Beispiel: Musterstraße 12, 12345 Berlin">
+                            <div class="error-message" id="insuranceAddressError"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="email">Email*</label>
+                            <input type="email" id="email" name="email" required>
+                            <div class="error-message" id="emailError"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="phone">Telefon*</label>
+                            <input type="tel" id="phone" name="phone" required>
+                            <div class="error-message" id="phoneError"></div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Раздел с информацией о партнере по продажам - предзаполненное -->
+                <section class="form-section">
+                    <h2>Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO</h2>
+                    
+                    <div class="partner-info">
+                        <p><strong>Name:</strong> Svechynskyy</p>
+                        <p><strong>Vorname:</strong> Igor</p>
+                        <p><strong>Firma:</strong> Svechynskyy KG</p>
+                        <p><strong>Anschrift:</strong> Hauptstrasse 60, 50126 Bergheim</p>
+                    </div>
+                </section>
+                
+                <!-- Текст доверенности -->
+                <section class="form-section">
+                    <h2>Bevollmächtigung</h2>
+                    
+                    <div class="agreement-text">
+                        <p>Hiermit bevollmächtige ich den vorbenannten Vertriebspartner, meine Interessen gegenüber der BIG direkt gesund zu vertreten. Dies umfasst auch die Entgegennahme aller Korrespondenz. Die Bevollmächtigung gilt bis auf Widerruf.</p>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="ort">Ort*</label>
+                            <input type="text" id="ort" name="ort" value="Bergheim" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="datum">Datum*</label>
+                            <input type="text" id="datum" name="datum" placeholder="DD.MM.YYYY" required>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- Подпись -->
+                <section class="form-section">
+                    <h2>Unterschrift des Versicherten</h2>
+                    
+                    <div class="signature-container">
+                        <div class="signature-methods">
+                            <div class="signature-method active" data-method="draw">Zeichnen</div>
+                            <div class="signature-method" data-method="upload">Hochladen</div>
+                        </div>
+                        
+                        <div class="signature-area" id="signatureDrawArea">
+                            <canvas id="signatureCanvas" width="300" height="150"></canvas>
+                            <div class="signature-controls">
+                                <button type="button" id="clearSignature">Löschen</button>
+                            </div>
+                        </div>
+                        
+                        <div class="signature-area hidden" id="signatureUploadArea">
+                            <input type="file" id="signatureUpload" accept="image/png, image/jpeg">
+                            <div class="signature-preview" id="signaturePreview"></div>
+                        </div>
+                        
+                        <div class="error-message" id="signatureError"></div>
+                    </div>
+                </section>
+                
+                <!-- Кнопка отправки формы -->
+                <div class="submit-container">
+                    <button type="submit" id="submitForm">Absenden</button>
+                </div>
+                
+                <!-- Индикатор загрузки -->
+                <div class="loading-indicator hidden" id="loadingIndicator">
+                    <div class="spinner"></div>
+                    <p>Bitte warten...</p>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Сообщение об успешной отправке -->
+        <div class="success-message hidden" id="successMessage">
+            <h2>Ihre Daten wurden erfolgreich gesendet!</h2>
+            <p>Vielen Dank für Ihre Einreichung.</p>
+        </div>
+    </div>
+    
+    <script src="vollmacht.js"></script>
+</body>
+</html> 
