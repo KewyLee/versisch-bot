@@ -2,10 +2,10 @@
     "name": "telegram-form-app",
     "version": "1.0.0",
     "description": "Telegram Mini App для сбора данных с подписью PDF",
-    "main": "index.js",
+    "main": "project-folder/index.js",
     "scripts": {
-        "start": "node index.js",
-        "dev": "nodemon index.js"
+        "start": "node project-folder/index.js",
+        "dev": "nodemon project-folder/index.js"
     },
     "dependencies": {
         "body-parser": "^1.20.2",
@@ -18,5 +18,8 @@
     },
     "devDependencies": {
         "nodemon": "^3.0.3"
+    },
+    "engines": {
+        "node": "18.x"
     }
 }
