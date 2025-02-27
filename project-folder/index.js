@@ -591,7 +591,9 @@ app.listen(PORT, async () => {
   if (pdfFound) {
     console.log(`Итоговый путь к шаблону PDF: ${config.templatePdfPath}`);
   } else {
-    console.error('PDF не найден ни по одному из проверенных путей! Убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.');
+    console.error('ОШИБКА: PDF файл BIG_Vermittlervollmacht.pdf не найден! Приложение не сможет функционировать без этого файла.');
+    console.error('Пожалуйста, добавьте файл BIG_Vermittlervollmacht.pdf в одну из следующих директорий:');
+    possiblePaths.forEach(path => console.error(`- ${path}`));
   }
   
   // Проверяем существование директорий
