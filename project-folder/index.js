@@ -3,10 +3,11 @@ require('dotenv').config(); // Загружаем переменные окру�
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Telegraf } = require('telegraf');
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { jsPDF } = require('jspdf');
+require('jspdf-autotable'); // Подключаем дополнение для работы с таблицами
 
 // Получаем конфигурацию из переменных окружения
 const config = {
@@ -228,297 +229,189 @@ app.get('/api/get-template-pdf', (req, res) => {
   }
 });
 
-// Функция для заполнения PDF данными с оптимизированным кодом
+// Функция для заполнения PDF данными с использованием jsPDF
 async function fillPdfWithData(formData, signatureData) {
   try {
-    console.log('Начало заполнения PDF данными по шаблону');
-    console.log('Путь к шаблону PDF:', config.templatePdfPath);
+    console.log('Начало заполнения PDF данными с использованием jsPDF');
     
-    // Проверяем существование PDF шаблона
-    if (!fs.existsSync(config.templatePdfPath)) {
-      console.error(`Шаблон PDF не найден по пути: ${config.templatePdfPath}`);
-      throw new Error(`Шаблон PDF не найден. Убедитесь, что файл BIG_Vermittlervollmacht.pdf добавлен в проект.`);
-    }
-    
-    console.log('Шаблон PDF найден, приступаем к заполнению');
-    
-    // Загружаем шаблон PDF
-    const pdfBytes = fs.readFileSync(config.templatePdfPath);
-    const pdfDoc = await PDFDocument.load(pdfBytes);
-    const pages = pdfDoc.getPages();
-    
-    if (pages.length === 0) {
-      throw new Error('PDF документ не содержит страниц');
-    }
-    
-    const firstPage = pages[0];
-    const { width, height } = firstPage.getSize();
-    console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
-    
-    // Настраиваем шрифт и опции текста
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 11;
-    const textOptions = { 
-      size: fontSize,
-      font: helveticaFont,
-      color: rgb(0, 0, 0)
-    };
-    
-    // Определяем координаты полей в зависимости от типа формы
-    let fieldPositions;
-    
-    if (formData.isVollmachtForm) {
-      // Координаты для формы доверенности BIG
-      fieldPositions = {
-        lastName: { x: 47, y: height - 211 },           // Фамилия
-        firstName: { x: 141, y: height - 211 },         // Имя
-        birthDate: { x: 283, y: height - 211 },         // Дата рождения
-        birthSurname: { x: 141, y: height - 231 },      // Фамилия при рождении
-        hometown: { x: 283, y: height - 231 },          // Место рождения
-        street: { x: 47, y: height - 254 },             // Улица
-        houseNumber: { x: 222, y: height - 254 },       // Номер дома
-        zipCode: { x: 47, y: height - 274 },            // Индекс
-        city: { x: 95, y: height - 274 },               // Город
-        email: { x: 141, y: height - 293 },             // Email
-        phone: { x: 300, y: height - 293 },             // Телефон
-        ort: { x: 33, y: height - 403 },                // Место
-        datum: { x: 200, y: height - 403 },             // Дата
-        checkBox: { x: 33, y: height - 387 },           // Чекбокс
-        signature: { x: 180, y: height - 403, width: 120, height: 40 } // Подпись
-      };
-    } else {
-      // Координаты для стандартной формы
-      fieldPositions = {
-        fullName: { x: 123, y: height - 183 },          // Имя Фамилия
-        birthSurname: { x: 123, y: height - 203 },      // Фамилия при рождении
-        birthDate: { x: 266, y: height - 183 },         // Дата рождения
-        hometown: { x: 307, y: height - 203 },          // Место рождения
-        insuranceAddress: { x: 123, y: height - 225 },  // Адрес
-        email: { x: 123, y: height - 265 },             // Email
-        phone: { x: 307, y: height - 265 },             // Телефон
-        signature: { x: 93, y: height - 412, width: 120, height: 45 } // Подпись
-      };
-    }
-    
-    // Сначала пытаемся использовать AcroForm поля если они есть
-    const form = pdfDoc.getForm();
-    const fields = form.getFields();
-    console.log(`Найдено ${fields.length} полей формы в PDF:`);
-    
-    // Выводим названия всех найденных полей для отладки
-    fields.forEach(field => {
-      console.log(`- Поле формы: ${field.getName()}, тип: ${field.constructor.name}`);
+    // Создаем новый PDF документ формата A4
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
     });
     
-    if (fields.length > 0) {
-      console.log('Используем заполнение через AcroForm поля...');
+    // Функция для добавления текста
+    function addText(text, x, y, options = {}) {
+      if (!text) return;
       
-      // Вспомогательные функции для заполнения полей формы
-      const fillTextField = (fieldName, value) => {
-        try {
-          if (!value) return;
-          const field = form.getTextField(fieldName);
-          if (field) {
-            field.setText(value);
-            console.log(`Поле формы заполнено: ${fieldName} = ${value}`);
-          }
-        } catch (error) {
-          console.warn(`Не удалось заполнить поле ${fieldName}: ${error.message}`);
-        }
+      const defaultOptions = {
+        fontSize: 10,
+        align: 'left'
       };
       
-      const fillCheckBox = (fieldName, checked) => {
-        try {
-          const field = form.getCheckBox(fieldName);
-          if (field) {
-            if (checked) field.check();
-            else field.uncheck();
-            console.log(`Чекбокс ${fieldName} установлен в ${checked}`);
-          }
-        } catch (error) {
-          console.warn(`Не удалось заполнить чекбокс ${fieldName}: ${error.message}`);
-        }
-      };
+      const finalOptions = { ...defaultOptions, ...options };
       
-      try {
-        // Обрабатываем имя и фамилию
-        if (formData.fullName) {
-          const nameParts = formData.fullName.split(' ');
-          if (nameParts.length > 1) {
-            const lastName = nameParts[0];
-            const firstName = nameParts.slice(1).join(' ');
-            fillTextField('Name', lastName);
-            fillTextField('Vorname', firstName);
-          } else {
-            fillTextField('Name', formData.fullName);
-          }
-        }
-        
-        // Заполняем основные поля
-        fillTextField('Geburtsdatum', formData.birthDate);
-        fillTextField('Geburtsname', formData.birthSurname);
-        fillTextField('Geburtsort', formData.hometown);
-        
-        // Обработка адреса
-        if (formData.insuranceAddress) {
-          const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-          if (addressMatch) {
-            fillTextField('Strasse', addressMatch[1].trim());
-            fillTextField('Hausnummer', addressMatch[2]);
-            fillTextField('PLZ', addressMatch[3]);
-            fillTextField('Ort', addressMatch[4]);
-          } else {
-            fillTextField('Strasse', formData.insuranceAddress);
-          }
-        }
-        
-        // Заполняем контактные данные
-        fillTextField('Email', formData.email);
-        fillTextField('Telefon', formData.phone);
-        
-        // Заполняем место и дату
-        fillTextField('Ort_Unterschrift', formData.ort || 'Bergheim');
-        fillTextField('Datum', formData.datum || new Date().toLocaleDateString('de-DE'));
-        
-        // Отмечаем чекбокс согласия
-        fillCheckBox('Einwilligung', true);
-        
-        console.log('AcroForm поля успешно заполнены');
-      } catch (formError) {
-        console.warn(`Ошибка при заполнении AcroForm полей: ${formError.message}`);
-        console.log('Переключаемся на заполнение по координатам...');
-        
-        // Если не удалось заполнить через AcroForm, используем координатный метод
-        await fillPdfByCoordinates();
-      }
-    } else {
-      console.log('AcroForm поля не найдены, используем заполнение по координатам...');
-      await fillPdfByCoordinates();
+      doc.setFontSize(finalOptions.fontSize);
+      doc.text(text, x, y, { align: finalOptions.align });
     }
     
-    // Функция для заполнения PDF по координатам
-    async function fillPdfByCoordinates() {
-      if (formData.isVollmachtForm) {
-        // Обрабатываем имя и фамилию
-        if (formData.fullName) {
-          const nameParts = formData.fullName.split(' ');
-          if (nameParts.length > 1) {
-            const lastName = nameParts[0];
-            const firstName = nameParts.slice(1).join(' ');
-            firstPage.drawText(lastName, { x: fieldPositions.lastName.x, y: fieldPositions.lastName.y, ...textOptions });
-            firstPage.drawText(firstName, { x: fieldPositions.firstName.x, y: fieldPositions.firstName.y, ...textOptions });
-          } else {
-            firstPage.drawText(formData.fullName, { x: fieldPositions.lastName.x, y: fieldPositions.lastName.y, ...textOptions });
-          }
-        }
-        
-        // Заполняем основные поля
-        if (formData.birthDate) {
-          firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
-        }
-        if (formData.birthSurname) {
-          firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
-        }
-        if (formData.hometown) {
-          firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
-        }
-        
-        // Обработка адреса
-        if (formData.insuranceAddress) {
-          const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-          if (addressMatch) {
-            firstPage.drawText(addressMatch[1].trim(), { x: fieldPositions.street.x, y: fieldPositions.street.y, ...textOptions });
-            firstPage.drawText(addressMatch[2], { x: fieldPositions.houseNumber.x, y: fieldPositions.houseNumber.y, ...textOptions });
-            firstPage.drawText(addressMatch[3], { x: fieldPositions.zipCode.x, y: fieldPositions.zipCode.y, ...textOptions });
-            firstPage.drawText(addressMatch[4], { x: fieldPositions.city.x, y: fieldPositions.city.y, ...textOptions });
-          } else {
-            firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.street.x, y: fieldPositions.street.y, ...textOptions });
-          }
-        }
-        
-        // Заполняем контактные данные
-        if (formData.email) {
-          firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
-        }
-        if (formData.phone) {
-          firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
-        }
-        
-        // Заполняем место и дату
-        firstPage.drawText(formData.ort || 'Bergheim', { x: fieldPositions.ort.x, y: fieldPositions.ort.y, ...textOptions });
-        firstPage.drawText(formData.datum || new Date().toLocaleDateString('de-DE'), { x: fieldPositions.datum.x, y: fieldPositions.datum.y, ...textOptions });
-        
-        // Ставим отметку в чекбоксе
-        firstPage.drawText('X', {
-          x: fieldPositions.checkBox.x, 
-          y: fieldPositions.checkBox.y,
-          size: 14,
-          font: helveticaFont,
-          color: rgb(0, 0, 0)
-        });
-      } else {
-        // Заполняем поля для стандартной формы
-        if (formData.fullName) {
-          firstPage.drawText(formData.fullName, { x: fieldPositions.fullName.x, y: fieldPositions.fullName.y, ...textOptions });
-        }
-        if (formData.birthSurname) {
-          firstPage.drawText(formData.birthSurname, { x: fieldPositions.birthSurname.x, y: fieldPositions.birthSurname.y, ...textOptions });
-        }
-        if (formData.birthDate) {
-          firstPage.drawText(formData.birthDate, { x: fieldPositions.birthDate.x, y: fieldPositions.birthDate.y, ...textOptions });
-        }
-        if (formData.hometown) {
-          firstPage.drawText(formData.hometown, { x: fieldPositions.hometown.x, y: fieldPositions.hometown.y, ...textOptions });
-        }
-        if (formData.insuranceAddress && formData.insuranceAddress.trim() !== '') {
-          firstPage.drawText(formData.insuranceAddress, { x: fieldPositions.insuranceAddress.x, y: fieldPositions.insuranceAddress.y, ...textOptions });
-        }
-        if (formData.email) {
-          firstPage.drawText(formData.email, { x: fieldPositions.email.x, y: fieldPositions.email.y, ...textOptions });
-        }
-        if (formData.phone) {
-          firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
-        }
+    // Функция для добавления чекбокса
+    function addCheckbox(x, y, checked = true, size = 4) {
+      doc.rect(x, y, size, size);
+      if (checked) {
+        doc.line(x, y, x + size, y + size);
+        doc.line(x + size, y, x, y + size);
       }
     }
     
-    // Добавляем подпись, если она есть
-    if (signatureData) {
+    // Функция для добавления подписи
+    async function addSignature(signatureData, x, y, width, height) {
+      if (!signatureData) return;
+      
       try {
-        console.log('Добавление подписи в PDF');
         const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
-        const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
-        const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
-        
-        // Получаем координаты подписи в зависимости от типа формы
-        const sigPos = fieldPositions.signature;
-        
-        // Добавляем изображение подписи
-        firstPage.drawImage(signatureImage, {
-          x: sigPos.x,
-          y: sigPos.y,
-          width: sigPos.width,
-          height: sigPos.height,
-        });
-        
+        doc.addImage(signatureBase64, 'PNG', x, y, width, height);
         console.log('Подпись успешно добавлена в PDF');
       } catch (error) {
         console.warn(`Не удалось добавить подпись: ${error.message}`);
       }
     }
     
-    // Если были AcroForm поля, сглаживаем их перед сохранением
-    if (fields.length > 0) {
-      form.flatten();
+    // Добавляем заголовок документа
+    doc.setFontSize(14);
+    doc.text('Vollmacht für Vertriebspartner §34d GewO', 105, 20, { align: 'center' });
+    doc.text('zurück an die BIG', 105, 27, { align: 'center' });
+    
+    // Раздел "Личные данные застрахованного"
+    doc.setFontSize(12);
+    doc.text('Persönliche Angaben des Versicherten', 15, 40);
+    
+    // Линия под заголовком
+    doc.line(15, 43, 195, 43);
+    
+    // Данные клиента
+    if (formData.fullName) {
+      const nameParts = formData.fullName.split(' ');
+      if (nameParts.length > 1) {
+        const lastName = nameParts[0];
+        const firstName = nameParts.slice(1).join(' ');
+        
+        addText('Name:', 15, 50);
+        addText(lastName, 40, 50);
+        
+        addText('Vorname:', 95, 50);
+        addText(firstName, 120, 50);
+      } else {
+        addText('Name:', 15, 50);
+        addText(formData.fullName, 40, 50);
+      }
     }
     
-    // Сохраняем результат
-    console.log('Сохранение заполненного PDF');
-    const pdfBuffer = await pdfDoc.save();
+    addText('Geburtsdatum:', 15, 60);
+    addText(formData.birthDate || '', 50, 60);
+    
+    addText('Geburtsname:', 95, 60);
+    addText(formData.birthSurname || '', 135, 60);
+    
+    addText('Geburtsort:', 15, 70);
+    addText(formData.hometown || '', 50, 70);
+    
+    // Обработка адреса
+    if (formData.insuranceAddress) {
+      const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
+      
+      if (addressMatch) {
+        addText('Straße:', 15, 80);
+        addText(addressMatch[1].trim(), 40, 80);
+        
+        addText('Hausnummer:', 95, 80);
+        addText(addressMatch[2], 135, 80);
+        
+        addText('PLZ:', 15, 90);
+        addText(addressMatch[3], 40, 90);
+        
+        addText('Ort:', 95, 90);
+        addText(addressMatch[4], 110, 90);
+      } else {
+        addText('Adresse:', 15, 80);
+        addText(formData.insuranceAddress, 40, 80);
+      }
+    }
+    
+    addText('Email:', 15, 100);
+    addText(formData.email || '', 40, 100);
+    
+    addText('Telefon:', 95, 100);
+    addText(formData.phone || '', 125, 100);
+    
+    // Раздел "Данные уполномоченного партнера по продажам"
+    doc.setFontSize(12);
+    doc.text('Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO', 15, 120);
+    
+    // Линия под заголовком
+    doc.line(15, 123, 195, 123);
+    
+    // Данные партнера (предзаполненные)
+    addText('Name:', 15, 130);
+    addText('Bergheim', 40, 130);
+    
+    addText('Vorname:', 95, 130);
+    addText('Elmar', 125, 130);
+    
+    addText('Firmenname:', 15, 140);
+    addText('Bergheim Versicherungsmakler GmbH', 50, 140);
+    
+    addText('Straße:', 15, 150);
+    addText('Kreuzstr.', 40, 150);
+    
+    addText('Hausnummer:', 95, 150);
+    addText('19', 135, 150);
+    
+    addText('PLZ:', 15, 160);
+    addText('50189', 40, 160);
+    
+    addText('Ort:', 95, 160);
+    addText('Elsdorf', 110, 160);
+    
+    // Раздел "Доверенность"
+    doc.setFontSize(12);
+    doc.text('Bevollmächtigung', 15, 180);
+    
+    // Линия под заголовком
+    doc.line(15, 183, 195, 183);
+    
+    // Текст доверенности
+    doc.setFontSize(10);
+    const authorizationText = 'Hiermit bevollmächtige ich die o.g. Vertriebspartner der BIG direkt leben die für mich bestehenden Verträge bei der BIG direkt leben namens und im Auftrag für mich zu verwalten. Die Vollmacht für den Vertriebspartner kann jederzeit ohne Angabe von Gründen durch den Versicherungsnehmer widerrufen werden.';
+    doc.text(authorizationText, 15, 190, { maxWidth: 180 });
+    
+    // Чекбокс согласия
+    addCheckbox(15, 210, true);
+    doc.text('Ich bin damit einverstanden, dass der o.g. Vertriebspartner meine Daten zum Zwecke der Antragsbearbeitung, Beratung sowie Vertragsverwaltung verarbeitet. Bei einem Widerruf der Vollmacht bearbeitet die BIG direkt leben in Zukunft sämtliche Anfragen und Mitteilungen zu dem Vertrag direkt mit mir.', 22, 212, { maxWidth: 170 });
+    
+    // Место для подписи
+    addText('Ort:', 15, 240);
+    addText(formData.ort || 'Bergheim', 30, 240);
+    
+    addText('Datum:', 75, 240);
+    addText(formData.datum || new Date().toLocaleDateString('de-DE'), 95, 240);
+    
+    // Добавляем подпись
+    if (signatureData) {
+      await addSignature(signatureData, 140, 230, 40, 15);
+    }
+    
+    addText('Unterschrift des Versicherungsnehmers', 140, 250);
+    
+    // Сохраняем PDF в буфер
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+    console.log('PDF успешно создан с помощью jsPDF');
+    
     return pdfBuffer;
     
   } catch (error) {
-    console.error(`Ошибка при заполнении PDF: ${error.message}`);
+    console.error(`Ошибка при создании PDF с jsPDF: ${error.message}`);
     throw error;
   }
 }
