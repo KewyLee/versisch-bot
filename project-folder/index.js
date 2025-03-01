@@ -288,31 +288,31 @@ async function fillPdfWithData(formData, signatureData) {
       if (formData.isVollmachtForm) {
         fieldPositions = {
           // Данные застрахованного лица (Versicherten)
-          versichertenName: { x: 100, y: height - 195 },        // Имя
-          versichertenVorname: { x: 180, y: height - 195 },     // Фамилия
-          versichertenGeburtsdatum: { x: 240, y: height - 195 }, // Дата рождения
-          versichertenGeburtsname: { x: 100, y: height - 215 },  // Фамилия при рождении
-          versichertenGeburtsort: { x: 240, y: height - 215 },   // Место рождения
-          versichertenStrasse: { x: 100, y: height - 235 },      // Улица
-          versichertenHausnummer: { x: 190, y: height - 235 },   // Номер дома
-          versichertenPLZ: { x: 100, y: height - 250 },          // Индекс
-          versichertenOrt: { x: 160, y: height - 250 },          // Город
-          versichertenEmail: { x: 100, y: height - 275 },        // Email
-          versichertenTelefon: { x: 240, y: height - 275 },      // Телефон
+          versichertenName: { x: 141, y: height - 211 },        // Имя
+          versichertenVorname: { x: 47, y: height - 211 },      // Фамилия
+          versichertenGeburtsdatum: { x: 283, y: height - 211 }, // Дата рождения
+          versichertenGeburtsname: { x: 141, y: height - 231 },  // Фамилия при рождении
+          versichertenGeburtsort: { x: 283, y: height - 231 },   // Место рождения
+          versichertenStrasse: { x: 47, y: height - 254 },      // Улица
+          versichertenHausnummer: { x: 222, y: height - 254 },   // Номер дома
+          versichertenPLZ: { x: 47, y: height - 274 },          // Индекс
+          versichertenOrt: { x: 95, y: height - 274 },          // Город
+          versichertenEmail: { x: 141, y: height - 293 },       // Email
+          versichertenTelefon: { x: 300, y: height - 293 },     // Телефон
           
           // Данные партнера по продажам (Vertriebspartner)
-          vertriebspartnerName: { x: 100, y: height - 325 },      // Имя
-          vertriebspartnerVorname: { x: 240, y: height - 325 },   // Фамилия
-          vertriebspartnerFirma: { x: 100, y: height - 345 },     // Компания
-          vertriebspartnerStrasse: { x: 100, y: height - 365 },   // Улица
-          vertriebspartnerHausnummer: { x: 190, y: height - 365 },// Номер дома
-          vertriebspartnerPLZ: { x: 100, y: height - 385 },       // Индекс
-          vertriebspartnerOrt: { x: 160, y: height - 385 },       // Город
+          vertriebspartnerName: { x: 141, y: height - 321 },     // Имя
+          vertriebspartnerVorname: { x: 47, y: height - 321 },   // Фамилия
+          vertriebspartnerFirma: { x: 47, y: height - 336 },     // Компания
+          vertriebspartnerStrasse: { x: 47, y: height - 359 },   // Улица
+          vertriebspartnerHausnummer: { x: 222, y: height - 359 },// Номер дома
+          vertriebspartnerPLZ: { x: 47, y: height - 384 },       // Индекс
+          vertriebspartnerOrt: { x: 95, y: height - 384 },       // Город
           
           // Место, дата и подпись
-          ort: { x: 80, y: height - 460 },                     // Место
-          datum: { x: 200, y: height - 460 },                  // Дата
-          signature: { x: 80, y: height - 500, width: 150, height: 60 } // Подпись
+          ort: { x: 40, y: height - 439 },                      // Место
+          datum: { x: 200, y: height - 439 },                   // Дата
+          signature: { x: 340, y: height - 439, width: 150, height: 40 } // Подпись
         };
       }
       
@@ -339,10 +339,11 @@ async function fillPdfWithData(formData, signatureData) {
           if (nameParts.length > 1) {
             const lastName = nameParts[0];
             const firstName = nameParts.slice(1).join(' ');
-            drawTextSafely('versichertenName', lastName, fieldPositions.versichertenName);
-            drawTextSafely('versichertenVorname', firstName, fieldPositions.versichertenVorname);
+            // Обратите внимание: в немецкой форме фамилия идет первой, имя - вторым
+            drawTextSafely('versichertenName', firstName, fieldPositions.versichertenName);
+            drawTextSafely('versichertenVorname', lastName, fieldPositions.versichertenVorname);
           } else {
-            drawTextSafely('versichertenName', formData.fullName, fieldPositions.versichertenName);
+            drawTextSafely('versichertenVorname', formData.fullName, fieldPositions.versichertenVorname);
           }
         }
         
@@ -449,12 +450,31 @@ async function fillPdfWithData(formData, signatureData) {
           // Выбираем позицию для подписи в зависимости от типа формы
           const signaturePosition = fieldPositions.signature;
           
+          // Корректируем размер подписи для лучшего размещения
+          let sigWidth = signaturePosition.width;
+          let sigHeight = signaturePosition.height;
+          
+          // Если это форма доверенности, используем другие размеры
+          if (formData.isVollmachtForm) {
+            sigWidth = 120;
+            sigHeight = 40;
+            
+            // Также ставим отметку в чекбоксе для поля "Ich bestätige..."
+            firstPage.drawText('X', {
+              x: 40, 
+              y: height - 412,
+              size: 14,
+              font: helveticaFont,
+              color: rgb(0, 0, 0)
+            });
+          }
+          
           // Добавляем только изображение подписи
           firstPage.drawImage(signatureImage, {
             x: signaturePosition.x,
             y: signaturePosition.y,
-            width: signaturePosition.width,
-            height: signaturePosition.height,
+            width: sigWidth,
+            height: sigHeight,
           });
           
           console.log('Подпись успешно добавлена в PDF');
@@ -494,13 +514,13 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
     if (telegramUsername && telegramUsername.trim() !== '') {
       // Убираем символ @ из имени пользователя, если он есть
       telegramUsername = telegramUsername.replace(/^@/, '');
-      userLink = `[${userLinkText}](https://t.me/${telegramUsername})`;
+      userLink = `${userLinkText}(https://t.me/${telegramUsername})`;
       
       // Отдельно добавляем username после основной ссылки
-      userLink += ` - @${telegramUsername} (https://t.me/${telegramUsername})`;
+      userLink += ` - @${telegramUsername}`;
     } else if (formData.telegramChatId) {
       // Если нет имени пользователя, но есть ID чата, используем его
-      userLink = `[${userLinkText}](tg://user?id=${formData.telegramChatId})`;
+      userLink = `${userLinkText}(https://t.me/${formData.telegramChatId})`;
     } else {
       userLink = userLinkText;
     }
@@ -571,7 +591,8 @@ app.listen(PORT, async () => {
     path.join(__dirname, '..', 'public', 'BIG_Vermittlervollmacht.pdf'),
     path.join(__dirname, 'public', 'BIG_Vermittlervollmacht.pdf'),
     './BIG_Vermittlervollmacht.pdf',
-    '../BIG_Vermittlervollmacht.pdf'
+    '../BIG_Vermittlervollmacht.pdf',
+    '/app/BIG_Vermittlervollmacht.pdf' // Для Heroku
   ];
   
   console.log('Проверка возможных путей к PDF файлу:');
@@ -590,6 +611,8 @@ app.listen(PORT, async () => {
   
   if (pdfFound) {
     console.log(`Итоговый путь к шаблону PDF: ${config.templatePdfPath}`);
+    console.log(`Для Heroku рекомендуется использовать следующий путь: '/app/BIG_Vermittlervollmacht.pdf'`);
+    console.log(`Это связано с тем, что в Heroku файлы обычно размещаются в директории /app`);
   } else {
     console.error('ОШИБКА: PDF файл BIG_Vermittlervollmacht.pdf не найден! Приложение не сможет функционировать без этого файла.');
     console.error('Пожалуйста, добавьте файл BIG_Vermittlervollmacht.pdf в одну из следующих директорий:');
