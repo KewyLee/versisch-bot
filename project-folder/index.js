@@ -13,7 +13,7 @@ const { generatePdfFromData } = require('./utils/pdfGenerator');
 const config = {
   botToken: process.env.BOT_TOKEN || '7557471395:AAFNHZlMynXghYKmr16XWOWVfUpgAqP_Sh8', // Токен Telegram бота
   adminChatId: process.env.ADMIN_CHAT_ID || '6085514487', // ID чата администратора
-  templatePdfPath: process.env.PDF_TEMPLATE_PATH || path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf'), // Путь к шаблону PDF
+  templatePdfPath: process.env.PDF_TEMPLATE_PATH || path.join(__dirname, 'BIG_Vermittlervollmacht.pdf'), // Путь к шаблону PDF
   webappUrl: process.env.WEBAPP_URL || 'https://versisch-fda933ace75b.herokuapp.com', // URL веб-приложения
 };
 
