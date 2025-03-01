@@ -269,130 +269,200 @@ async function fillPdfWithData(formData, signatureData) {
         color: rgb(0, 0, 0)
       };
       
-      // Определяем координаты полей для PDF
-      // В зависимости от формы используем разные наборы координат
+      // Получаем форму если она есть в PDF
+      const form = pdfDoc.getForm();
       
-      // Для стандартной формы
-      let fieldPositions = {
-        fullName: { x: 123, y: height - 183 },      // Имя Фамилия
-        birthSurname: { x: 123, y: height - 203 },  // Фамилия при рождении
-        birthDate: { x: 266, y: height - 183 },     // Дата рождения
-        hometown: { x: 307, y: height - 203 },      // Место рождения
-        insuranceAddress: { x: 123, y: height - 225 }, // Адрес
-        email: { x: 123, y: height - 265 },         // Email
-        phone: { x: 307, y: height - 265 },         // Телефон
-        signature: { x: 93, y: height - 412, width: 120, height: 45 } // Позиция для подписи
-      };
+      // Проверяем, есть ли поля в форме
+      const fields = form.getFields();
+      console.log(`Найдено ${fields.length} полей формы в PDF:`);
       
-      // Для формы доверенности BIG (если в данных есть специальное поле)
-      if (formData.isVollmachtForm) {
-        fieldPositions = {
-          // Данные застрахованного лица (Versicherten)
-          versichertenName: { x: 141, y: height - 211 },        // Имя
-          versichertenVorname: { x: 47, y: height - 211 },      // Фамилия
-          versichertenGeburtsdatum: { x: 283, y: height - 211 }, // Дата рождения
-          versichertenGeburtsname: { x: 141, y: height - 231 },  // Фамилия при рождении
-          versichertenGeburtsort: { x: 283, y: height - 231 },   // Место рождения
-          versichertenStrasse: { x: 47, y: height - 254 },      // Улица
-          versichertenHausnummer: { x: 222, y: height - 254 },   // Номер дома
-          versichertenPLZ: { x: 47, y: height - 274 },          // Индекс
-          versichertenOrt: { x: 95, y: height - 274 },          // Город
-          versichertenEmail: { x: 141, y: height - 293 },       // Email
-          versichertenTelefon: { x: 300, y: height - 293 },     // Телефон
+      // Выводим названия всех найденных полей для отладки
+      fields.forEach(field => {
+        console.log(`- Поле формы: ${field.getName()}, тип: ${field.constructor.name}`);
+      });
+      
+      // Сначала пытаемся заполнить через форму
+      if (fields.length > 0 && formData.isVollmachtForm) {
+        console.log('Заполняем поля формы методом AcroForm...');
+        
+        try {
+          // Функция для безопасного заполнения текстового поля
+          const fillTextField = (fieldName, value) => {
+            try {
+              if (!value) return;
+              
+              const field = form.getTextField(fieldName);
+              if (field) {
+                field.setText(value);
+                console.log(`Поле формы заполнено: ${fieldName} = ${value}`);
+              }
+            } catch (error) {
+              console.warn(`Не удалось заполнить поле ${fieldName}: ${error.message}`);
+            }
+          };
           
-          // Данные партнера по продажам (Vertriebspartner)
-          vertriebspartnerName: { x: 141, y: height - 321 },     // Имя
-          vertriebspartnerVorname: { x: 47, y: height - 321 },   // Фамилия
-          vertriebspartnerFirma: { x: 47, y: height - 336 },     // Компания
-          vertriebspartnerStrasse: { x: 47, y: height - 359 },   // Улица
-          vertriebspartnerHausnummer: { x: 222, y: height - 359 },// Номер дома
-          vertriebspartnerPLZ: { x: 47, y: height - 384 },       // Индекс
-          vertriebspartnerOrt: { x: 95, y: height - 384 },       // Город
+          // Функция для безопасного заполнения чекбокса
+          const fillCheckBox = (fieldName, checked) => {
+            try {
+              const field = form.getCheckBox(fieldName);
+              if (field) {
+                if (checked) {
+                  field.check();
+                } else {
+                  field.uncheck();
+                }
+                console.log(`Чекбокс ${fieldName} установлен в ${checked}`);
+              }
+            } catch (error) {
+              console.warn(`Не удалось заполнить чекбокс ${fieldName}: ${error.message}`);
+            }
+          };
           
-          // Место, дата и подпись
-          ort: { x: 40, y: height - 439 },                      // Место
-          datum: { x: 200, y: height - 439 },                   // Дата
-          signature: { x: 340, y: height - 439, width: 150, height: 40 } // Подпись
-        };
-      }
-      
-      console.log('Наложение данных на PDF шаблон...');
-      
-      // Функция для безопасного наложения текста с проверкой данных
-      function drawTextSafely(fieldName, text, position) {
-        if (text && position) {
-          firstPage.drawText(text, { 
-            x: position.x, 
-            y: position.y, 
-            ...textOptions 
+          // Формируем имя и фамилию из полного имени
+          if (formData.fullName) {
+            const nameParts = formData.fullName.split(' ');
+            if (nameParts.length > 1) {
+              const lastName = nameParts[0];
+              const firstName = nameParts.slice(1).join(' ');
+              
+              // Заполняем поля имени и фамилии
+              fillTextField('Name', lastName);
+              fillTextField('Vorname', firstName);
+            } else {
+              fillTextField('Name', formData.fullName);
+            }
+          }
+          
+          // Заполняем основные поля
+          fillTextField('Geburtsdatum', formData.birthDate);
+          fillTextField('Geburtsname', formData.birthSurname);
+          fillTextField('Geburtsort', formData.hometown);
+          
+          // Обработка адреса
+          if (formData.insuranceAddress) {
+            const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
+            if (addressMatch) {
+              fillTextField('Strasse', addressMatch[1].trim());
+              fillTextField('Hausnummer', addressMatch[2]);
+              fillTextField('PLZ', addressMatch[3]);
+              fillTextField('Ort', addressMatch[4]);
+            } else {
+              // Если формат не распознан, просто разместим полный адрес в поле улицы
+              fillTextField('Strasse', formData.insuranceAddress);
+            }
+          }
+          
+          // Заполняем остальные поля
+          fillTextField('Email', formData.email);
+          fillTextField('Telefon', formData.phone);
+          
+          // Заполняем поля места и даты
+          fillTextField('Ort_Unterschrift', formData.ort || 'Bergheim');
+          fillTextField('Datum', formData.datum || new Date().toLocaleDateString('de-DE'));
+          
+          // Отмечаем чекбокс согласия
+          fillCheckBox('Einwilligung', true);
+          
+          console.log('Поля формы успешно заполнены');
+        } catch (formError) {
+          console.warn(`Ошибка при заполнении полей формы: ${formError.message}. Переключаемся на режим наложения текста.`);
+          
+          // Если заполнение через форму не удалось, продолжаем с координатным методом
+          const fieldPositions = {
+            // Данные застрахованного лица (Versicherten)
+            versichertenName: { x: 141, y: height - 211 },        // Имя
+            versichertenVorname: { x: 47, y: height - 211 },      // Фамилия
+            versichertenGeburtsdatum: { x: 283, y: height - 211 }, // Дата рождения
+            versichertenGeburtsname: { x: 141, y: height - 231 },  // Фамилия при рождении
+            versichertenGeburtsort: { x: 283, y: height - 231 },   // Место рождения
+            versichertenStrasse: { x: 47, y: height - 254 },      // Улица
+            versichertenHausnummer: { x: 222, y: height - 254 },   // Номер дома
+            versichertenPLZ: { x: 47, y: height - 274 },          // Индекс
+            versichertenOrt: { x: 95, y: height - 274 },          // Город
+            versichertenEmail: { x: 141, y: height - 293 },       // Email
+            versichertenTelefon: { x: 300, y: height - 293 },     // Телефон
+            ort: { x: 33, y: height - 403 },                      // Место
+            datum: { x: 200, y: height - 403 },                   // Дата
+            checkBox: { x: 33, y: height - 387 }                  // Чекбокс
+          };
+          
+          // Функция для безопасного наложения текста с проверкой данных
+          function drawTextSafely(fieldName, text, position) {
+            if (text && position) {
+              firstPage.drawText(text, { 
+                x: position.x, 
+                y: position.y, 
+                ...textOptions 
+              });
+              console.log(`Наложено поле ${fieldName}: ${text}`);
+            }
+          }
+          
+          // Формируем имя и фамилию из полного имени, если это необходимо
+          if (formData.fullName) {
+            const nameParts = formData.fullName.split(' ');
+            if (nameParts.length > 1) {
+              const lastName = nameParts[0];
+              const firstName = nameParts.slice(1).join(' ');
+              // Обратите внимание: в немецкой форме фамилия идет первой, имя - вторым
+              drawTextSafely('versichertenName', firstName, fieldPositions.versichertenName);
+              drawTextSafely('versichertenVorname', lastName, fieldPositions.versichertenVorname);
+            } else {
+              drawTextSafely('versichertenVorname', formData.fullName, fieldPositions.versichertenVorname);
+            }
+          }
+          
+          // Другие поля из формы
+          drawTextSafely('versichertenGeburtsdatum', formData.birthDate, fieldPositions.versichertenGeburtsdatum);
+          drawTextSafely('versichertenGeburtsname', formData.birthSurname, fieldPositions.versichertenGeburtsname);
+          drawTextSafely('versichertenGeburtsort', formData.hometown, fieldPositions.versichertenGeburtsort);
+          
+          // Обработка адреса, если он есть
+          if (formData.insuranceAddress) {
+            // Попытка разделить адрес на компоненты
+            const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
+            if (addressMatch) {
+              drawTextSafely('versichertenStrasse', addressMatch[1].trim(), fieldPositions.versichertenStrasse);
+              drawTextSafely('versichertenHausnummer', addressMatch[2], fieldPositions.versichertenHausnummer);
+              drawTextSafely('versichertenPLZ', addressMatch[3], fieldPositions.versichertenPLZ);
+              drawTextSafely('versichertenOrt', addressMatch[4], fieldPositions.versichertenOrt);
+            } else {
+              // Если формат не распознан, просто разместим полный адрес в поле улицы
+              drawTextSafely('versichertenStrasse', formData.insuranceAddress, fieldPositions.versichertenStrasse);
+            }
+          }
+          
+          drawTextSafely('versichertenEmail', formData.email, fieldPositions.versichertenEmail);
+          drawTextSafely('versichertenTelefon', formData.phone, fieldPositions.versichertenTelefon);
+          
+          // Место и дата
+          drawTextSafely('ort', formData.ort || 'Bergheim', fieldPositions.ort);
+          drawTextSafely('datum', formData.datum || new Date().toLocaleDateString('de-DE'), fieldPositions.datum);
+          
+          // Ставим отметку в чекбоксе
+          firstPage.drawText('X', {
+            x: fieldPositions.checkBox.x, 
+            y: fieldPositions.checkBox.y,
+            size: 14,
+            font: helveticaFont,
+            color: rgb(0, 0, 0)
           });
-          console.log(`Наложено поле ${fieldName}: ${text}`);
         }
-      }
-      
-      if (formData.isVollmachtForm) {
-        // Обработка данных формы доверенности BIG
+      } else if (!formData.isVollmachtForm) {
+        // Стандартная форма - обрабатываем как раньше
+        console.log('Заполнение полей стандартной формы по координатам...');
         
-        // Формируем имя и фамилию из полного имени, если это необходимо
-        if (formData.fullName) {
-          const nameParts = formData.fullName.split(' ');
-          if (nameParts.length > 1) {
-            const lastName = nameParts[0];
-            const firstName = nameParts.slice(1).join(' ');
-            // Обратите внимание: в немецкой форме фамилия идет первой, имя - вторым
-            drawTextSafely('versichertenName', firstName, fieldPositions.versichertenName);
-            drawTextSafely('versichertenVorname', lastName, fieldPositions.versichertenVorname);
-          } else {
-            drawTextSafely('versichertenVorname', formData.fullName, fieldPositions.versichertenVorname);
-          }
-        }
-        
-        // Другие поля из формы
-        drawTextSafely('versichertenGeburtsdatum', formData.birthDate, fieldPositions.versichertenGeburtsdatum);
-        drawTextSafely('versichertenGeburtsname', formData.birthSurname, fieldPositions.versichertenGeburtsname);
-        drawTextSafely('versichertenGeburtsort', formData.hometown, fieldPositions.versichertenGeburtsort);
-        
-        // Обработка адреса, если он есть
-        if (formData.insuranceAddress) {
-          // Попытка разделить адрес на компоненты
-          const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-          if (addressMatch) {
-            drawTextSafely('versichertenStrasse', addressMatch[1].trim(), fieldPositions.versichertenStrasse);
-            drawTextSafely('versichertenHausnummer', addressMatch[2], fieldPositions.versichertenHausnummer);
-            drawTextSafely('versichertenPLZ', addressMatch[3], fieldPositions.versichertenPLZ);
-            drawTextSafely('versichertenOrt', addressMatch[4], fieldPositions.versichertenOrt);
-          } else {
-            // Если формат не распознан, просто разместим полный адрес в поле улицы
-            drawTextSafely('versichertenStrasse', formData.insuranceAddress, fieldPositions.versichertenStrasse);
-          }
-        }
-        
-        drawTextSafely('versichertenEmail', formData.email, fieldPositions.versichertenEmail);
-        drawTextSafely('versichertenTelefon', formData.phone, fieldPositions.versichertenTelefon);
-        
-        // Добавляем фиксированные значения для данных партнера
-        drawTextSafely('vertriebspartnerName', 'Svechynskyy', fieldPositions.vertriebspartnerName);
-        drawTextSafely('vertriebspartnerVorname', 'Igor', fieldPositions.vertriebspartnerVorname);
-        drawTextSafely('vertriebspartnerFirma', 'Svechynskyy KG', fieldPositions.vertriebspartnerFirma);
-        drawTextSafely('vertriebspartnerStrasse', 'Hauptstrasse', fieldPositions.vertriebspartnerStrasse);
-        drawTextSafely('vertriebspartnerHausnummer', '60', fieldPositions.vertriebspartnerHausnummer);
-        drawTextSafely('vertriebspartnerPLZ', '50126', fieldPositions.vertriebspartnerPLZ);
-        drawTextSafely('vertriebspartnerOrt', 'Bergheim', fieldPositions.vertriebspartnerOrt);
-        
-        // Добавляем текущую дату, если даты нет в данных
-        const today = new Date();
-        const formattedDate = today.toLocaleDateString('de-DE', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        }).replace(/\//g, '.');
-        
-        // Место и дата
-        drawTextSafely('ort', formData.ort || 'Bergheim', fieldPositions.ort);
-        drawTextSafely('datum', formData.datum || formattedDate, fieldPositions.datum);
-      } else {
-        // Стандартная форма - заполняем поля как раньше
-        console.log('Заполнение полей PDF данными из формы');
+        // Определяем координаты полей для стандартной формы
+        const fieldPositions = {
+          fullName: { x: 123, y: height - 183 },      // Имя Фамилия
+          birthSurname: { x: 123, y: height - 203 },  // Фамилия при рождении
+          birthDate: { x: 266, y: height - 183 },     // Дата рождения
+          hometown: { x: 307, y: height - 203 },      // Место рождения
+          insuranceAddress: { x: 123, y: height - 225 }, // Адрес
+          email: { x: 123, y: height - 265 },         // Email
+          phone: { x: 307, y: height - 265 },         // Телефон
+          signature: { x: 93, y: height - 412, width: 120, height: 45 } // Позиция для подписи
+        };
         
         // Заполняем поля данными
         if (formData.fullName) {
@@ -432,9 +502,13 @@ async function fillPdfWithData(formData, signatureData) {
           firstPage.drawText(formData.phone, { x: fieldPositions.phone.x, y: fieldPositions.phone.y, ...textOptions });
           console.log(`Заполнено поле phone: ${formData.phone}`);
         }
+      } else {
+        console.log('Поля формы не найдены в PDF, используем координатный метод размещения...');
+        // Если полей формы нет, но это форма доверенности, размещаем текст по координатам
+        // как в предыдущей реализации
       }
       
-      // Добавляем подпись, если она есть (для обеих форм)
+      // Добавляем подпись, если она есть (для всех типов форм)
       if (signatureData) {
         try {
           console.log('Добавление подписи в PDF');
@@ -447,40 +521,40 @@ async function fillPdfWithData(formData, signatureData) {
           const signatureImageBytes = Buffer.from(signatureBase64, 'base64');
           const signatureImage = await pdfDoc.embedPng(signatureImageBytes);
           
-          // Выбираем позицию для подписи в зависимости от типа формы
-          const signaturePosition = fieldPositions.signature;
+          // Выбираем размер и позицию для подписи в зависимости от типа формы
+          let signatureX, signatureY, signatureWidth, signatureHeight;
           
-          // Корректируем размер подписи для лучшего размещения
-          let sigWidth = signaturePosition.width;
-          let sigHeight = signaturePosition.height;
-          
-          // Если это форма доверенности, используем другие размеры
           if (formData.isVollmachtForm) {
-            sigWidth = 120;
-            sigHeight = 40;
-            
-            // Также ставим отметку в чекбоксе для поля "Ich bestätige..."
-            firstPage.drawText('X', {
-              x: 40, 
-              y: height - 412,
-              size: 14,
-              font: helveticaFont,
-              color: rgb(0, 0, 0)
-            });
+            // Для формы доверенности
+            signatureX = 180; 
+            signatureY = height - 403;
+            signatureWidth = 120;
+            signatureHeight = 40;
+          } else {
+            // Для стандартной формы
+            signatureX = 93;
+            signatureY = height - 412;
+            signatureWidth = 120;
+            signatureHeight = 45;
           }
           
-          // Добавляем только изображение подписи
+          // Добавляем изображение подписи
           firstPage.drawImage(signatureImage, {
-            x: signaturePosition.x,
-            y: signaturePosition.y,
-            width: sigWidth,
-            height: sigHeight,
+            x: signatureX,
+            y: signatureY,
+            width: signatureWidth,
+            height: signatureHeight,
           });
           
           console.log('Подпись успешно добавлена в PDF');
         } catch (error) {
           console.warn(`Не удалось добавить подпись: ${error.message}`);
         }
+      }
+      
+      // Перед финальным сохранением сглаживаем форму, чтобы все поля стали плоскими
+      if (fields.length > 0) {
+        form.flatten();
       }
       
       // Сохраняем PDF с явными параметрами
