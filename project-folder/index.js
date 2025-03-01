@@ -6,8 +6,8 @@ const { Telegraf } = require('telegraf');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { jsPDF } = require('jspdf');
-require('jspdf-autotable'); // Подключаем дополнение для работы с таблицами
+// Импортируем функцию из нового модуля для генерации PDF
+const { generatePdfFromData } = require('./utils/pdfGenerator');
 
 // Получаем конфигурацию из переменных окружения
 const config = {
@@ -120,7 +120,7 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
     console.log('Путь к фото:', photoPath);
     
     // Заполняем PDF данными пользователя
-    const filledPdfBuffer = await fillPdfWithData(formData, signatureData);
+    const filledPdfBuffer = await generatePdfFromData(formData, signatureData);
     
     // Сохраняем заполненный PDF с расширением .pdf
     const pdfFileName = `${Date.now()}_filled.pdf`;
@@ -229,194 +229,7 @@ app.get('/api/get-template-pdf', (req, res) => {
   }
 });
 
-// Функция для заполнения PDF данными с использованием jsPDF
-async function fillPdfWithData(formData, signatureData) {
-  try {
-    console.log('Начало заполнения PDF данными с использованием jsPDF');
-    
-    // Создаем новый PDF документ формата A4
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-    
-    // Функция для добавления текста
-    function addText(text, x, y, options = {}) {
-      if (!text) return;
-      
-      const defaultOptions = {
-        fontSize: 10,
-        align: 'left'
-      };
-      
-      const finalOptions = { ...defaultOptions, ...options };
-      
-      doc.setFontSize(finalOptions.fontSize);
-      doc.text(text, x, y, { align: finalOptions.align });
-    }
-    
-    // Функция для добавления чекбокса
-    function addCheckbox(x, y, checked = true, size = 4) {
-      doc.rect(x, y, size, size);
-      if (checked) {
-        doc.line(x, y, x + size, y + size);
-        doc.line(x + size, y, x, y + size);
-      }
-    }
-    
-    // Функция для добавления подписи
-    async function addSignature(signatureData, x, y, width, height) {
-      if (!signatureData) return;
-      
-      try {
-        const signatureBase64 = signatureData.replace(/^data:image\/png;base64,/, '');
-        doc.addImage(signatureBase64, 'PNG', x, y, width, height);
-        console.log('Подпись успешно добавлена в PDF');
-      } catch (error) {
-        console.warn(`Не удалось добавить подпись: ${error.message}`);
-      }
-    }
-    
-    // Добавляем заголовок документа
-    doc.setFontSize(14);
-    doc.text('Vollmacht für Vertriebspartner §34d GewO', 105, 20, { align: 'center' });
-    doc.text('zurück an die BIG', 105, 27, { align: 'center' });
-    
-    // Раздел "Личные данные застрахованного"
-    doc.setFontSize(12);
-    doc.text('Persönliche Angaben des Versicherten', 15, 40);
-    
-    // Линия под заголовком
-    doc.line(15, 43, 195, 43);
-    
-    // Данные клиента
-    if (formData.fullName) {
-      const nameParts = formData.fullName.split(' ');
-      if (nameParts.length > 1) {
-        const lastName = nameParts[0];
-        const firstName = nameParts.slice(1).join(' ');
-        
-        addText('Name:', 15, 50);
-        addText(lastName, 40, 50);
-        
-        addText('Vorname:', 95, 50);
-        addText(firstName, 120, 50);
-      } else {
-        addText('Name:', 15, 50);
-        addText(formData.fullName, 40, 50);
-      }
-    }
-    
-    addText('Geburtsdatum:', 15, 60);
-    addText(formData.birthDate || '', 50, 60);
-    
-    addText('Geburtsname:', 95, 60);
-    addText(formData.birthSurname || '', 135, 60);
-    
-    addText('Geburtsort:', 15, 70);
-    addText(formData.hometown || '', 50, 70);
-    
-    // Обработка адреса
-    if (formData.insuranceAddress) {
-      const addressMatch = formData.insuranceAddress.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-      
-      if (addressMatch) {
-        addText('Straße:', 15, 80);
-        addText(addressMatch[1].trim(), 40, 80);
-        
-        addText('Hausnummer:', 95, 80);
-        addText(addressMatch[2], 135, 80);
-        
-        addText('PLZ:', 15, 90);
-        addText(addressMatch[3], 40, 90);
-        
-        addText('Ort:', 95, 90);
-        addText(addressMatch[4], 110, 90);
-      } else {
-        addText('Adresse:', 15, 80);
-        addText(formData.insuranceAddress, 40, 80);
-      }
-    }
-    
-    addText('Email:', 15, 100);
-    addText(formData.email || '', 40, 100);
-    
-    addText('Telefon:', 95, 100);
-    addText(formData.phone || '', 125, 100);
-    
-    // Раздел "Данные уполномоченного партнера по продажам"
-    doc.setFontSize(12);
-    doc.text('Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO', 15, 120);
-    
-    // Линия под заголовком
-    doc.line(15, 123, 195, 123);
-    
-    // Данные партнера (предзаполненные)
-    addText('Name:', 15, 130);
-    addText('Bergheim', 40, 130);
-    
-    addText('Vorname:', 95, 130);
-    addText('Elmar', 125, 130);
-    
-    addText('Firmenname:', 15, 140);
-    addText('Bergheim Versicherungsmakler GmbH', 50, 140);
-    
-    addText('Straße:', 15, 150);
-    addText('Kreuzstr.', 40, 150);
-    
-    addText('Hausnummer:', 95, 150);
-    addText('19', 135, 150);
-    
-    addText('PLZ:', 15, 160);
-    addText('50189', 40, 160);
-    
-    addText('Ort:', 95, 160);
-    addText('Elsdorf', 110, 160);
-    
-    // Раздел "Доверенность"
-    doc.setFontSize(12);
-    doc.text('Bevollmächtigung', 15, 180);
-    
-    // Линия под заголовком
-    doc.line(15, 183, 195, 183);
-    
-    // Текст доверенности
-    doc.setFontSize(10);
-    const authorizationText = 'Hiermit bevollmächtige ich die o.g. Vertriebspartner der BIG direkt leben die für mich bestehenden Verträge bei der BIG direkt leben namens und im Auftrag für mich zu verwalten. Die Vollmacht für den Vertriebspartner kann jederzeit ohne Angabe von Gründen durch den Versicherungsnehmer widerrufen werden.';
-    doc.text(authorizationText, 15, 190, { maxWidth: 180 });
-    
-    // Чекбокс согласия
-    addCheckbox(15, 210, true);
-    doc.text('Ich bin damit einverstanden, dass der o.g. Vertriebspartner meine Daten zum Zwecke der Antragsbearbeitung, Beratung sowie Vertragsverwaltung verarbeitet. Bei einem Widerruf der Vollmacht bearbeitet die BIG direkt leben in Zukunft sämtliche Anfragen und Mitteilungen zu dem Vertrag direkt mit mir.', 22, 212, { maxWidth: 170 });
-    
-    // Место для подписи
-    addText('Ort:', 15, 240);
-    addText(formData.ort || 'Bergheim', 30, 240);
-    
-    addText('Datum:', 75, 240);
-    addText(formData.datum || new Date().toLocaleDateString('de-DE'), 95, 240);
-    
-    // Добавляем подпись
-    if (signatureData) {
-      await addSignature(signatureData, 140, 230, 40, 15);
-    }
-    
-    addText('Unterschrift des Versicherungsnehmers', 140, 250);
-    
-    // Сохраняем PDF в буфер
-    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-    console.log('PDF успешно создан с помощью jsPDF');
-    
-    return pdfBuffer;
-    
-  } catch (error) {
-    console.error(`Ошибка при создании PDF с jsPDF: ${error.message}`);
-    throw error;
-  }
-}
-
-// Функция для отправки данных администратору
+// Функция для отправки данных администратору через Telegram
 async function sendDataToAdmin(formData, pdfPath, photoPath) {
   try {
     console.log('Отправка данных администратору:', config.adminChatId);
@@ -490,74 +303,24 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
     
     console.log('Данные успешно отправлены администратору');
   } catch (error) {
-    console.error('Ошибка при отправке данных администратору:', error);
+    console.error(`Ошибка при отправке сообщения администратору: ${error.message}`);
     throw error;
   }
 }
 
 // Запускаем сервер
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
-  console.log(`Путь к шаблону PDF: ${config.templatePdfPath}`);
-  console.log(`Абсолютный путь к директории приложения: ${__dirname}`);
+  console.log(`WebApp URL: ${config.webappUrl}`);
+  console.log(`Шаблон PDF: ${config.templatePdfPath}`);
   
-  // Проверка различных возможных мест расположения файла
-  const possiblePaths = [
-    config.templatePdfPath,
-    path.join(__dirname, 'BIG_Vermittlervollmacht.pdf'),
-    path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf'),
-    path.join(__dirname, '..', 'public', 'BIG_Vermittlervollmacht.pdf'),
-    path.join(__dirname, 'public', 'BIG_Vermittlervollmacht.pdf'),
-    './BIG_Vermittlervollmacht.pdf',
-    '../BIG_Vermittlervollmacht.pdf',
-    '/app/BIG_Vermittlervollmacht.pdf' // Для Heroku
-  ];
+  // Запуск бота Telegram
+  bot.launch()
+    .then(() => console.log('Telegram бот запущен'))
+    .catch(err => console.error('Ошибка запуска Telegram бота:', err));
   
-  console.log('Проверка возможных путей к PDF файлу:');
-  let pdfFound = false;
-  
-  for (const pdfPath of possiblePaths) {
-    const exists = fs.existsSync(pdfPath);
-    console.log(`- ${pdfPath}: ${exists ? 'СУЩЕСТВУЕТ' : 'НЕ СУЩЕСТВУЕТ'}`);
-    
-    if (exists && !pdfFound) {
-      console.log(`PDF найден! Обновляем путь к шаблону: ${pdfPath}`);
-      config.templatePdfPath = pdfPath;
-      pdfFound = true;
-    }
-  }
-  
-  if (pdfFound) {
-    console.log(`Итоговый путь к шаблону PDF: ${config.templatePdfPath}`);
-    console.log(`Для Heroku рекомендуется использовать следующий путь: '/app/BIG_Vermittlervollmacht.pdf'`);
-    console.log(`Это связано с тем, что в Heroku файлы обычно размещаются в директории /app`);
-  } else {
-    console.error('ОШИБКА: PDF файл BIG_Vermittlervollmacht.pdf не найден! Приложение не сможет функционировать без этого файла.');
-    console.error('Пожалуйста, добавьте файл BIG_Vermittlervollmacht.pdf в одну из следующих директорий:');
-    possiblePaths.forEach(path => console.error(`- ${path}`));
-  }
-  
-  // Проверяем существование директорий
-  if (!fs.existsSync(filledFormsDir)) {
-    fs.mkdirSync(filledFormsDir, { recursive: true });
-    console.log(`Создана директория для заполненных форм: ${filledFormsDir}`);
-  }
-  
-  const uploadDir = './uploads';
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-    console.log(`Создана директория для загрузок: ${uploadDir}`);
-  }
+  // Корректное завершение работы при сигнале остановки
+  process.once('SIGINT', () => bot.stop('SIGINT'));
+  process.once('SIGTERM', () => bot.stop('SIGTERM'));
 });
-
-// Запускаем бота
-bot.launch().then(() => {
-  console.log('Бот успешно запущен');
-}).catch(error => {
-  console.error(`Ошибка при запуске бота: ${error.message}`);
-});
-
-// Обработка завершения процесса
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
