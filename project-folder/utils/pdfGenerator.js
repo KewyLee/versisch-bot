@@ -11,7 +11,14 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
-const pdfjsLib = require('pdfjs-dist');
+
+// Опционально загружаем pdfjs-dist
+let pdfjsLib;
+try {
+  pdfjsLib = require('pdfjs-dist');
+} catch (error) {
+  console.log('Модуль pdfjs-dist не найден. Функция анализа PDF будет недоступна.');
+}
 
 // Полифилл для atob, который не доступен в Node.js
 function atob(base64) {
@@ -274,6 +281,12 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
  */
 async function getTextPositions(pdfPath) {
   try {
+    // Проверяем доступность модуля pdfjs-dist
+    if (!pdfjsLib) {
+      console.error('Модуль pdfjs-dist не установлен. Установите его с помощью npm install pdfjs-dist');
+      return;
+    }
+    
     // Проверяем существование файла
     if (!fs.existsSync(pdfPath)) {
       console.error(`Файл не найден: ${pdfPath}`);

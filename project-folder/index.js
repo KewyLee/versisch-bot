@@ -143,6 +143,11 @@ bot.start((ctx) => {
 // Обработчик команды /analyze_pdf для получения координат текста в PDF
 bot.command('analyze_pdf', async (ctx) => {
   try {
+    // Проверяем, доступна ли функция getTextPositions
+    if (typeof getTextPositions !== 'function') {
+      return ctx.reply('Функция анализа PDF недоступна. Установите модуль pdfjs-dist с помощью npm install pdfjs-dist');
+    }
+    
     const pdfPath = path.join(__dirname, 'BIG_Vermittlervollmacht.pdf');
     
     if (!fs.existsSync(pdfPath)) {
