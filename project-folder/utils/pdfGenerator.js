@@ -44,6 +44,8 @@ async function generatePdfFromData(formData, signatureData) {
     const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
     
+    console.log(`Размеры страницы PDF: ширина=${width}, высота=${height}`);
+    
     // Загружаем стандартный шрифт
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     
@@ -91,70 +93,105 @@ async function generatePdfFromData(formData, signatureData) {
       color: rgb(0, 0, 0)
     };
     
-    // Заполнение данных на странице
-    // Позиции нужно будет скорректировать под конкретный шаблон
-    let yPosition = height - 100; // Начальная Y-позиция
-    const lineHeight = fontSize * 1.5;
+    // КОРРЕКТИРОВАННЫЕ КООРДИНАТЫ для BIG_Vermittlervollmacht.pdf
+    // Координаты определены на основе визуального анализа PDF-шаблона
     
-    // Персональные данные (примерные позиции, требуется корректировка)
-    firstPage.drawText(`${data.lastName}`, { ...textOptions, x: 150, y: yPosition });
-    yPosition -= lineHeight;
+    // Фамилия - верхняя часть формы
+    if (data.lastName) {
+      firstPage.drawText(data.lastName, { 
+        ...textOptions, 
+        x: 140, // корректировка по оси X
+        y: height - 152 // корректировка по оси Y
+      });
+    }
     
-    firstPage.drawText(`${data.firstName}`, { ...textOptions, x: 150, y: yPosition });
-    yPosition -= lineHeight;
+    // Имя
+    if (data.firstName) {
+      firstPage.drawText(data.firstName, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 172 
+      });
+    }
     
+    // Дата рождения
     if (data.birthDate) {
-      firstPage.drawText(data.birthDate, { ...textOptions, x: 150, y: yPosition });
-      yPosition -= lineHeight;
+      firstPage.drawText(data.birthDate, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 193 
+      });
     }
     
+    // Фамилия при рождении (если отличается)
     if (data.birthSurname) {
-      firstPage.drawText(data.birthSurname, { ...textOptions, x: 150, y: yPosition });
-      yPosition -= lineHeight;
+      firstPage.drawText(data.birthSurname, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 213 
+      });
     }
     
+    // Место рождения
     if (data.birthplace) {
-      firstPage.drawText(data.birthplace, { ...textOptions, x: 150, y: yPosition });
-      yPosition -= lineHeight;
+      firstPage.drawText(data.birthplace, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 235 
+      });
     }
     
-    // Пропуск нескольких строк для адреса
-    yPosition -= lineHeight * 2;
-    
-    // Адресные данные
+    // Адрес: улица и номер дома
     if (data.street) {
-      firstPage.drawText(data.street, { ...textOptions, x: 150, y: yPosition });
-      if (data.houseNumber) {
-        const streetWidth = font.widthOfTextAtSize(data.street, fontSize);
-        firstPage.drawText(data.houseNumber, { ...textOptions, x: 150 + streetWidth + 5, y: yPosition });
-      }
-      yPosition -= lineHeight;
+      const streetText = data.street + (data.houseNumber ? ` ${data.houseNumber}` : '');
+      firstPage.drawText(streetText, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 275 
+      });
     }
     
+    // Индекс и город
     if (data.zipCode || data.city) {
-      let addressText = '';
-      if (data.zipCode) addressText += data.zipCode;
-      if (data.zipCode && data.city) addressText += ' ';
-      if (data.city) addressText += data.city;
-      
-      firstPage.drawText(addressText, { ...textOptions, x: 150, y: yPosition });
-      yPosition -= lineHeight;
+      const addressText = `${data.zipCode || ''} ${data.city || ''}`.trim();
+      firstPage.drawText(addressText, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 295 
+      });
     }
     
-    // Контактные данные
+    // Email
     if (data.email) {
-      firstPage.drawText(data.email, { ...textOptions, x: 150, y: yPosition });
-      yPosition -= lineHeight;
+      firstPage.drawText(data.email, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 316 
+      });
     }
     
+    // Телефон
     if (data.phone) {
-      firstPage.drawText(data.phone, { ...textOptions, x: 150, y: yPosition });
-      yPosition -= lineHeight;
+      firstPage.drawText(data.phone, { 
+        ...textOptions, 
+        x: 140, 
+        y: height - 336 
+      });
     }
     
-    // Область для места и даты (обычно внизу формы)
-    firstPage.drawText(data.place, { ...textOptions, x: 150, y: 100 });
-    firstPage.drawText(data.date, { ...textOptions, x: 350, y: 100 });
+    // Место подписания (внизу формы)
+    firstPage.drawText(data.place, { 
+      ...textOptions, 
+      x: 150, 
+      y: 135 
+    });
+    
+    // Дата подписания
+    firstPage.drawText(data.date, { 
+      ...textOptions, 
+      x: 400, 
+      y: 135 
+    });
     
     // Добавляем подпись, если она была предоставлена
     if (signatureData) {
@@ -191,16 +228,16 @@ async function addSignatureToDocument(pdfDoc, signatureData) {
     // Загружаем изображение подписи
     const signatureImage = await pdfDoc.embedPng(signatureBytes);
     
-    // Получаем размеры изображения
-    const signatureDims = signatureImage.scale(0.3); // Масштабируем изображение
+    // Получаем размеры изображения и масштабируем подпись
+    const signatureDims = signatureImage.scale(0.25); // Уменьшаем масштаб для лучшего размещения
     
     // Получаем первую страницу
     const page = pdfDoc.getPages()[0];
     
-    // Добавляем подпись в позицию подписи (позицию нужно настроить)
+    // ИСПРАВЛЕНО: Добавляем подпись в правильное место (рядом с местом для подписи)
     page.drawImage(signatureImage, {
-      x: 150,
-      y: 80,
+      x: 280, // Смещение по X - правая часть страницы, где обычно ставят подпись
+      y: 120,  // Положение по Y - немного выше строки с датой
       width: signatureDims.width,
       height: signatureDims.height
     });
