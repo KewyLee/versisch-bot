@@ -13,6 +13,11 @@ const fs = require('fs');
 const path = require('path');
 const pdfjsLib = require('pdfjs-dist');
 
+// Полифилл для atob, который не доступен в Node.js
+function atob(base64) {
+  return Buffer.from(base64, 'base64').toString('binary');
+}
+
 /**
  * Заполняет PDF-шаблон данными пользователя
  * @param {Object} formData - Данные формы от пользователя
@@ -220,11 +225,15 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
     // Удаляем префикс data:image/png;base64, если он есть
     const base64Data = signatureData.replace(/^data:image\/png;base64,/, '');
     
-    // Декодируем base64 в буфер
-    const signatureBuffer = Buffer.from(base64Data, 'base64');
+    // Преобразуем base64 в Uint8Array (работает в Node.js и браузере)
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
     
     // Встраиваем изображение подписи в PDF
-    const signatureImage = await pdfDoc.embedPng(signatureBuffer);
+    const signatureImage = await pdfDoc.embedPng(bytes);
     
     // Получаем размеры изображения
     const { width: imgWidth, height: imgHeight } = signatureImage.size();
@@ -264,28 +273,45 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
  * @returns {Promise<void>} - выводит координаты в консоль
  */
 async function getTextPositions(pdfPath) {
-    try {
-        // Получаем абсолютный путь к файлу
-        const absolutePath = path.resolve(pdfPath);
-        console.log(`Анализ PDF-файла: ${absolutePath}`);
-        
-        // Загружаем PDF-файл
-        const pdf = await pdfjsLib.getDocument(absolutePath).promise;
-        console.log(`PDF загружен, количество страниц: ${pdf.numPages}`);
-        
-        // Получаем первую страницу
-        const page = await pdf.getPage(1);
-        
-        // Получаем текстовое содержимое
-        const content = await page.getTextContent();
-        
-        console.log('Координаты текста в PDF:');
-        content.items.forEach(item => {
-            console.log(`Текст: "${item.str}", Координаты: x=${item.transform[4]}, y=${item.transform[5]}`);
-        });
-    } catch (error) {
-        console.error('Ошибка при анализе PDF:', error);
+  try {
+    // Проверяем существование файла
+    if (!fs.existsSync(pdfPath)) {
+      console.error(`Файл не найден: ${pdfPath}`);
+      return;
     }
+    
+    // Получаем абсолютный путь к файлу
+    const absolutePath = path.resolve(pdfPath);
+    console.log(`Анализ PDF-файла: ${absolutePath}`);
+    
+    // Читаем файл в буфер
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    
+    // Загружаем PDF-файл из буфера
+    const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
+    console.log(`PDF загружен, количество страниц: ${pdf.numPages}`);
+    
+    // Получаем первую страницу
+    const page = await pdf.getPage(1);
+    
+    // Получаем текстовое содержимое
+    const content = await page.getTextContent();
+    
+    console.log('Координаты текста в PDF:');
+    content.items.forEach(item => {
+      console.log(`Текст: "${item.str}", Координаты: x=${item.transform[4]}, y=${item.transform[5]}`);
+    });
+    
+    // Возвращаем координаты для возможного использования
+    return content.items.map(item => ({
+      text: item.str,
+      x: item.transform[4],
+      y: item.transform[5]
+    }));
+  } catch (error) {
+    console.error('Ошибка при анализе PDF:', error);
+    throw error;
+  }
 }
 
 module.exports = {
