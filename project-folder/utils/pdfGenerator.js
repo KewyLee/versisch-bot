@@ -16,7 +16,7 @@ const path = require('path');
  * Заполняет PDF-шаблон данными пользователя
  * @param {Object} formData - Данные формы от пользователя
  * @param {string} signatureData - Base64-строка с изображением подписи
- * @returns {Promise<Buffer>} - Промис с буфером заполненного PDF
+ * @returns {Promise<Buffer>} - Промис с буфером заполненного PDF-документа
  */
 async function generatePdfFromData(formData, signatureData) {
   try {
@@ -57,33 +57,20 @@ async function generatePdfFromData(formData, signatureData) {
       firstName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
     }
     
-    // Извлекаем адресные данные
+    // Извлекаем адресные данные из уже обработанных компонентов
     let street = '', houseNumber = '', zipCode = '', city = '';
-    if (formData.insuranceAddress) {
-      street = extractStreet(formData.insuranceAddress);
-      houseNumber = extractHouseNumber(formData.insuranceAddress);
-      zipCode = extractZipCode(formData.insuranceAddress);
-      city = extractCity(formData.insuranceAddress);
+    if (formData.addressComponents) {
+      // Используем уже разобранный адрес из index.js
+      street = formData.addressComponents.street || '';
+      houseNumber = formData.addressComponents.houseNumber || '';
+      zipCode = formData.addressComponents.zipCode || '';
+      city = formData.addressComponents.city || '';
+    } else if (formData.insuranceAddress) {
+      // Для обратной совместимости, если addressComponents не передан
+      console.log('Внимание: addressComponents не найден, используется прямой адрес');
+      // Просто используем полный адрес как улицу
+      street = formData.insuranceAddress || '';
     }
-    
-    // Данные для заполнения
-    const data = {
-      lastName: lastName,
-      firstName: firstName,
-      birthDate: formData.birthDate || '',
-      birthSurname: formData.birthSurname || '',
-      birthplace: formData.hometown || '',
-      street: street,
-      houseNumber: houseNumber,
-      zipCode: zipCode,
-      city: city,
-      email: formData.email || '',
-      phone: formData.phone || '',
-      date: formData.datum || new Date().toLocaleDateString('de-DE'),
-      place: formData.ort || 'Bergheim'
-    };
-    
-    console.log('Подготовленные данные для заполнения PDF:', data);
     
     // Параметры текста
     const fontSize = 12;
@@ -93,109 +80,83 @@ async function generatePdfFromData(formData, signatureData) {
       color: rgb(0, 0, 0)
     };
     
-    // КОРРЕКТИРОВАННЫЕ КООРДИНАТЫ для BIG_Vermittlervollmacht.pdf
-    // Координаты определены на основе визуального анализа PDF-шаблона
+    // ИСПОЛЬЗУЕМ ТОЧНЫЕ КООРДИНАТЫ, УКАЗАННЫЕ ПОЛЬЗОВАТЕЛЕМ
     
-    // Фамилия - верхняя часть формы
-    if (data.lastName) {
-      firstPage.drawText(data.lastName, { 
+    // Фамилия
+    if (lastName) {
+      firstPage.drawText(lastName, { 
         ...textOptions, 
-        x: 140, // корректировка по оси X
-        y: height - 152 // корректировка по оси Y
+        x: 50, 
+        y: height - 100 
       });
     }
     
     // Имя
-    if (data.firstName) {
-      firstPage.drawText(data.firstName, { 
+    if (firstName) {
+      firstPage.drawText(firstName, { 
         ...textOptions, 
-        x: 140, 
-        y: height - 172 
+        x: 50, 
+        y: height - 120 
       });
     }
     
     // Дата рождения
-    if (data.birthDate) {
-      firstPage.drawText(data.birthDate, { 
+    if (formData.birthDate) {
+      firstPage.drawText(formData.birthDate, { 
         ...textOptions, 
-        x: 140, 
-        y: height - 193 
+        x: 50, 
+        y: height - 140 
       });
     }
     
-    // Фамилия при рождении (если отличается)
-    if (data.birthSurname) {
-      firstPage.drawText(data.birthSurname, { 
+    // Улица
+    if (street) {
+      firstPage.drawText(street, { 
         ...textOptions, 
-        x: 140, 
-        y: height - 213 
+        x: 50, 
+        y: height - 160 
       });
     }
     
-    // Место рождения
-    if (data.birthplace) {
-      firstPage.drawText(data.birthplace, { 
+    // Номер дома
+    if (houseNumber) {
+      firstPage.drawText(houseNumber, { 
         ...textOptions, 
-        x: 140, 
-        y: height - 235 
+        x: 200, 
+        y: height - 160 
       });
     }
     
-    // Адрес: улица и номер дома
-    if (data.street) {
-      const streetText = data.street + (data.houseNumber ? ` ${data.houseNumber}` : '');
-      firstPage.drawText(streetText, { 
+    // Индекс
+    if (zipCode) {
+      firstPage.drawText(zipCode, { 
         ...textOptions, 
-        x: 140, 
-        y: height - 275 
+        x: 50, 
+        y: height - 180 
       });
     }
     
-    // Индекс и город
-    if (data.zipCode || data.city) {
-      const addressText = `${data.zipCode || ''} ${data.city || ''}`.trim();
-      firstPage.drawText(addressText, { 
+    // Город
+    if (city) {
+      firstPage.drawText(city, { 
         ...textOptions, 
-        x: 140, 
-        y: height - 295 
+        x: 150, 
+        y: height - 180 
       });
     }
     
-    // Email
-    if (data.email) {
-      firstPage.drawText(data.email, { 
-        ...textOptions, 
-        x: 140, 
-        y: height - 316 
-      });
-    }
-    
-    // Телефон
-    if (data.phone) {
-      firstPage.drawText(data.phone, { 
-        ...textOptions, 
-        x: 140, 
-        y: height - 336 
-      });
-    }
-    
-    // Место подписания (внизу формы)
-    firstPage.drawText(data.place, { 
+    // Текущая дата (серое поле)
+    const currentDate = new Date().toLocaleDateString('de-DE');
+    firstPage.drawText(currentDate, { 
       ...textOptions, 
-      x: 150, 
-      y: 135 
-    });
-    
-    // Дата подписания
-    firstPage.drawText(data.date, { 
-      ...textOptions, 
-      x: 400, 
-      y: 135 
+      x: 50, 
+      y: height - 240,
+      color: rgb(0.5, 0.5, 0.5) // Серый цвет
     });
     
     // Добавляем подпись, если она была предоставлена
     if (signatureData) {
-      await addSignatureToDocument(pdfDoc, signatureData);
+      await addSignatureToDocument(pdfDoc, signatureData, height);
     }
     
     // Сохраняем изменения и получаем PDF в виде байтов
@@ -216,8 +177,9 @@ async function generatePdfFromData(formData, signatureData) {
  * Добавляет подпись в документ
  * @param {PDFDocument} pdfDoc - PDF документ
  * @param {string} signatureData - Base64-строка с изображением подписи
+ * @param {number} height - Высота страницы
  */
-async function addSignatureToDocument(pdfDoc, signatureData) {
+async function addSignatureToDocument(pdfDoc, signatureData, height) {
   try {
     // Удаляем префикс Data URL, если он есть
     const base64Data = signatureData.replace(/^data:image\/png;base64,/, '');
@@ -234,12 +196,13 @@ async function addSignatureToDocument(pdfDoc, signatureData) {
     // Получаем первую страницу
     const page = pdfDoc.getPages()[0];
     
-    // ИСПРАВЛЕНО: Добавляем подпись в правильное место (рядом с местом для подписи)
+    // Добавляем подпись в фиолетовое поле
     page.drawImage(signatureImage, {
-      x: 280, // Смещение по X - правая часть страницы, где обычно ставят подпись
-      y: 120,  // Положение по Y - немного выше строки с датой
+      x: 50,
+      y: height - 220,
       width: signatureDims.width,
-      height: signatureDims.height
+      height: signatureDims.height,
+      color: rgb(0.5, 0, 0.5) // Фиолетовый цвет
     });
     
     console.log('Подпись успешно добавлена в PDF');
@@ -247,46 +210,6 @@ async function addSignatureToDocument(pdfDoc, signatureData) {
     console.warn(`Не удалось добавить подпись: ${error.message}`);
     // Не прерываем выполнение при ошибке с подписью
   }
-}
-
-/**
- * Извлекает улицу из адреса
- * @param {string} address - Полный адрес
- * @returns {string} - Название улицы
- */
-function extractStreet(address) {
-  const match = address.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-  return match ? match[1].trim() : address;
-}
-
-/**
- * Извлекает номер дома из адреса
- * @param {string} address - Полный адрес
- * @returns {string} - Номер дома
- */
-function extractHouseNumber(address) {
-  const match = address.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-  return match ? match[2] : '';
-}
-
-/**
- * Извлекает почтовый индекс из адреса
- * @param {string} address - Полный адрес
- * @returns {string} - Почтовый индекс
- */
-function extractZipCode(address) {
-  const match = address.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-  return match ? match[3] : '';
-}
-
-/**
- * Извлекает город из адреса
- * @param {string} address - Полный адрес
- * @returns {string} - Название города
- */
-function extractCity(address) {
-  const match = address.match(/^(.*?)(\d+[a-zA-Z]?),?\s*(\d+)\s*(.*)$/);
-  return match ? match[4] : '';
 }
 
 module.exports = {

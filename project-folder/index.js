@@ -17,6 +17,68 @@ const config = {
   webappUrl: process.env.WEBAPP_URL || 'https://versisch-fda933ace75b.herokuapp.com', // URL веб-приложения
 };
 
+/**
+ * Разбирает адрес на компоненты: улица, номер дома, индекс, город
+ * @param {string} address - Полный адрес
+ * @returns {Object} - Объект с компонентами адреса
+ */
+function parseAddress(address) {
+  if (!address || typeof address !== 'string') {
+    return { street: '', houseNumber: '', zipCode: '', city: '' };
+  }
+  
+  console.log(`Разбор адреса: ${address}`);
+  
+  // Попытка разбора адреса с использованием регулярного выражения
+  // Формат: "Улица НомерДома, Индекс Город" или "Улица НомерДома Индекс Город"
+  const addressRegex = /^(.*?)(\d+[a-zA-Z]?)(?:,?\s+)(\d{5})(?:\s+)(.*)$/;
+  const match = address.match(addressRegex);
+  
+  if (match) {
+    return {
+      street: match[1].trim(),
+      houseNumber: match[2],
+      zipCode: match[3],
+      city: match[4]
+    };
+  }
+  
+  // Если не удалось разобрать по регулярному выражению, пробуем другой подход
+  // Проверяем, есть ли в адресе цифры (возможный номер дома)
+  const houseNumberMatch = address.match(/(\d+[a-zA-Z]?)/);
+  let street = address;
+  let houseNumber = '';
+  
+  if (houseNumberMatch) {
+    const parts = address.split(houseNumberMatch[0]);
+    street = parts[0].trim();
+    houseNumber = houseNumberMatch[0];
+    
+    // Проверяем, есть ли после номера дома еще текст (возможный индекс и город)
+    if (parts[1]) {
+      const cityParts = parts[1].trim().split(/\s+/);
+      // Если первая часть похожа на индекс (5 цифр)
+      if (cityParts[0] && /^\d{5}$/.test(cityParts[0])) {
+        return {
+          street: street,
+          houseNumber: houseNumber,
+          zipCode: cityParts[0],
+          city: cityParts.slice(1).join(' ')
+        };
+      }
+    }
+  }
+  
+  // Если не удалось разобрать адрес, возвращаем только улицу
+  console.log(`Не удалось полностью разобрать адрес. Используем как улицу: ${street}`);
+  return {
+    street: street,
+    houseNumber: houseNumber,
+    zipCode: '',
+    city: ''
+  };
+}
+
 // Проверка наличия обязательных переменных
 if (!config.botToken || !config.adminChatId) {
   console.warn('Внимание: Не заданы переменные окружения BOT_TOKEN и/или ADMIN_CHAT_ID. Используются значения по умолчанию.');
@@ -114,6 +176,13 @@ app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
       username: formData.telegramUsername || 'не указан', 
       chatId: formData.telegramChatId || 'не указан' 
     });
+    
+    // Обрабатываем адрес перед передачей в функцию генерации PDF
+    if (formData.insuranceAddress) {
+      const addressComponents = parseAddress(formData.insuranceAddress);
+      formData.addressComponents = addressComponents;
+      console.log('Разобранный адрес:', addressComponents);
+    }
     
     // Путь к загруженной фотографии
     const photoPath = req.file ? req.file.path : null;
