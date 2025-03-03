@@ -11,6 +11,7 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
+const pdfjsLib = require('pdfjs-dist');
 
 /**
  * Заполняет PDF-шаблон данными пользователя
@@ -20,92 +21,97 @@ const path = require('path');
  */
 async function generatePdfFromData(formData, signatureData) {
   try {
-    console.log('Начало заполнения PDF-шаблона с использованием pdf-lib');
-    
-    // Путь к шаблону PDF
-    const templatePath = process.env.PDF_TEMPLATE_PATH || 
-                        path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
-    
-    console.log(`Используется шаблон: ${templatePath}`);
-    
-    // Проверяем существование шаблона
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`PDF шаблон не найден по пути: ${templatePath}`);
-    }
-    
-    // Чтение файла шаблона
-    const templateBytes = fs.readFileSync(templatePath);
-    
-    // Загружаем PDF документ
-    const pdfDoc = await PDFDocument.load(templateBytes);
+    // Загружаем шаблон PDF
+    const templatePath = path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
+    const pdfBytes = fs.readFileSync(templatePath);
+    const pdfDoc = await PDFDocument.load(pdfBytes);
     
     // Получаем первую страницу
     const pages = pdfDoc.getPages();
     const firstPage = pages[0];
     const { width, height } = firstPage.getSize();
     
-    console.log(`Размеры страницы PDF: ширина=${width}, высота=${height}`);
+    console.log(`Размеры PDF: ширина=${width}, высота=${height}`);
     
-    // Загружаем стандартный шрифт
+    // Настройки текста
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    
-    // Выделяем данные из formData
-    let lastName = '', firstName = '';
-    if (formData.fullName) {
-      const nameParts = formData.fullName.split(' ');
-      lastName = nameParts[0] || '';
-      firstName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-    }
-    
-    // Извлекаем адресные данные из уже обработанных компонентов
-    let street = '', houseNumber = '', zipCode = '', city = '';
-    if (formData.addressComponents) {
-      // Используем уже разобранный адрес из index.js
-      street = formData.addressComponents.street || '';
-      houseNumber = formData.addressComponents.houseNumber || '';
-      zipCode = formData.addressComponents.zipCode || '';
-      city = formData.addressComponents.city || '';
-    } else if (formData.insuranceAddress) {
-      // Для обратной совместимости, если addressComponents не передан
-      console.log('Внимание: addressComponents не найден, используется прямой адрес');
-      // Просто используем полный адрес как улицу
-      street = formData.insuranceAddress || '';
-    }
-    
-    // Параметры текста
-    const fontSize = 12;
     const textOptions = {
-      font: font,
-      size: fontSize,
+      font,
+      size: 10,
       color: rgb(0, 0, 0)
     };
     
-    // ИСПОЛЬЗУЕМ ТОЧНЫЕ КООРДИНАТЫ, УКАЗАННЫЕ ПОЛЬЗОВАТЕЛЕМ
+    // Извлекаем данные из формы
+    const { 
+      firstName, 
+      lastName, 
+      insuranceNumber, 
+      insuranceAddress,
+      addressComponents,
+      insuranceCompany,
+      birthDate,
+      email,
+      phone
+    } = formData;
     
-    // Фамилия
-    if (lastName) {
-      firstPage.drawText(lastName, { 
-        ...textOptions, 
-        x: 50, 
-        y: height - 100 
-      });
+    // Переменные для адреса
+    let street = '';
+    let houseNumber = '';
+    let zipCode = '';
+    let city = '';
+    
+    // Используем уже разобранные компоненты адреса, если они есть
+    if (addressComponents) {
+      street = addressComponents.street || '';
+      houseNumber = addressComponents.houseNumber || '';
+      zipCode = addressComponents.zipCode || '';
+      city = addressComponents.city || '';
+    } else if (insuranceAddress) {
+      // Для обратной совместимости
+      console.log('Внимание: addressComponents не найден, используется прямой адрес');
+      street = insuranceAddress || '';
     }
+    
+    // Координаты полей на основе анализа PDF
+    const fieldCoordinates = {
+      firstName: { x: 50, y: height - 120 },
+      lastName: { x: 200, y: height - 120 },
+      insuranceNumber: { x: 50, y: height - 140 },
+      street: { x: 50, y: height - 160 },
+      houseNumber: { x: 200, y: height - 160 },
+      zipCode: { x: 50, y: height - 180 },
+      city: { x: 150, y: height - 180 },
+      insuranceCompany: { x: 50, y: height - 200 },
+      birthDate: { x: 50, y: height - 220 },
+      date: { x: 50, y: height - 300 }
+    };
+    
+    // Заполняем поля формы
     
     // Имя
     if (firstName) {
       firstPage.drawText(firstName, { 
         ...textOptions, 
-        x: 50, 
-        y: height - 120 
+        x: fieldCoordinates.firstName.x, 
+        y: fieldCoordinates.firstName.y 
       });
     }
     
-    // Дата рождения
-    if (formData.birthDate) {
-      firstPage.drawText(formData.birthDate, { 
+    // Фамилия
+    if (lastName) {
+      firstPage.drawText(lastName, { 
         ...textOptions, 
-        x: 50, 
-        y: height - 140 
+        x: fieldCoordinates.lastName.x, 
+        y: fieldCoordinates.lastName.y 
+      });
+    }
+    
+    // Номер страховки
+    if (insuranceNumber) {
+      firstPage.drawText(insuranceNumber, { 
+        ...textOptions, 
+        x: fieldCoordinates.insuranceNumber.x, 
+        y: fieldCoordinates.insuranceNumber.y 
       });
     }
     
@@ -113,8 +119,8 @@ async function generatePdfFromData(formData, signatureData) {
     if (street) {
       firstPage.drawText(street, { 
         ...textOptions, 
-        x: 50, 
-        y: height - 160 
+        x: fieldCoordinates.street.x, 
+        y: fieldCoordinates.street.y 
       });
     }
     
@@ -122,8 +128,8 @@ async function generatePdfFromData(formData, signatureData) {
     if (houseNumber) {
       firstPage.drawText(houseNumber, { 
         ...textOptions, 
-        x: 200, 
-        y: height - 160 
+        x: fieldCoordinates.houseNumber.x, 
+        y: fieldCoordinates.houseNumber.y 
       });
     }
     
@@ -131,8 +137,8 @@ async function generatePdfFromData(formData, signatureData) {
     if (zipCode) {
       firstPage.drawText(zipCode, { 
         ...textOptions, 
-        x: 50, 
-        y: height - 180 
+        x: fieldCoordinates.zipCode.x, 
+        y: fieldCoordinates.zipCode.y 
       });
     }
     
@@ -140,8 +146,26 @@ async function generatePdfFromData(formData, signatureData) {
     if (city) {
       firstPage.drawText(city, { 
         ...textOptions, 
-        x: 150, 
-        y: height - 180 
+        x: fieldCoordinates.city.x, 
+        y: fieldCoordinates.city.y 
+      });
+    }
+    
+    // Страховая компания
+    if (insuranceCompany) {
+      firstPage.drawText(insuranceCompany, { 
+        ...textOptions, 
+        x: fieldCoordinates.insuranceCompany.x, 
+        y: fieldCoordinates.insuranceCompany.y 
+      });
+    }
+    
+    // Дата рождения
+    if (birthDate) {
+      firstPage.drawText(birthDate, { 
+        ...textOptions, 
+        x: fieldCoordinates.birthDate.x, 
+        y: fieldCoordinates.birthDate.y 
       });
     }
     
@@ -149,60 +173,82 @@ async function generatePdfFromData(formData, signatureData) {
     const currentDate = new Date().toLocaleDateString('de-DE');
     firstPage.drawText(currentDate, { 
       ...textOptions, 
-      x: 50, 
-      y: height - 240,
-      color: rgb(0.5, 0.5, 0.5) // Серый цвет
+      x: fieldCoordinates.date.x, 
+      y: fieldCoordinates.date.y 
     });
     
-    // Добавляем подпись, если она была предоставлена
+    // Добавляем подпись, если она есть
     if (signatureData) {
       await addSignatureToDocument(pdfDoc, signatureData, height);
     }
     
-    // Сохраняем изменения и получаем PDF в виде байтов
-    const pdfBytes = await pdfDoc.save();
+    // Сохраняем PDF
+    const pdfBuffer = await pdfDoc.save();
+    const outputPath = path.join(__dirname, '..', 'output', `vollmacht_${Date.now()}.pdf`);
     
-    console.log('PDF успешно заполнен с помощью pdf-lib');
+    // Создаем директорию output, если она не существует
+    const outputDir = path.join(__dirname, '..', 'output');
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
     
-    // Возвращаем буфер с PDF
-    return Buffer.from(pdfBytes);
+    fs.writeFileSync(outputPath, pdfBuffer);
+    console.log(`PDF успешно создан: ${outputPath}`);
     
+    return outputPath;
   } catch (error) {
-    console.error(`Ошибка при заполнении PDF с pdf-lib: ${error.message}`);
+    console.error('Ошибка при создании PDF:', error);
     throw error;
   }
 }
 
 /**
- * Добавляет подпись в документ
+ * Добавляет подпись в PDF документ
  * @param {PDFDocument} pdfDoc - PDF документ
- * @param {string} signatureData - Base64-строка с изображением подписи
- * @param {number} height - Высота страницы
+ * @param {string} signatureData - данные подписи в формате base64
+ * @param {number} height - высота страницы
+ * @returns {Promise<void>}
  */
 async function addSignatureToDocument(pdfDoc, signatureData, height) {
   try {
-    // Удаляем префикс Data URL, если он есть
+    // Проверяем, что данные подписи предоставлены
+    if (!signatureData) {
+      console.warn('Данные подписи не предоставлены');
+      return;
+    }
+
+    // Удаляем префикс data:image/png;base64, если он есть
     const base64Data = signatureData.replace(/^data:image\/png;base64,/, '');
     
-    // Преобразуем Base64 в Uint8Array
-    const signatureBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+    // Декодируем base64 в буфер
+    const signatureBuffer = Buffer.from(base64Data, 'base64');
     
-    // Загружаем изображение подписи
-    const signatureImage = await pdfDoc.embedPng(signatureBytes);
+    // Встраиваем изображение подписи в PDF
+    const signatureImage = await pdfDoc.embedPng(signatureBuffer);
     
-    // Получаем размеры изображения и масштабируем подпись
-    const signatureDims = signatureImage.scale(0.25); // Уменьшаем масштаб для лучшего размещения
+    // Получаем размеры изображения
+    const { width: imgWidth, height: imgHeight } = signatureImage.size();
+    
+    // Масштабируем изображение, чтобы оно не было слишком большим
+    const maxWidth = 150;
+    const scale = Math.min(1, maxWidth / imgWidth);
+    const scaledWidth = imgWidth * scale;
+    const scaledHeight = imgHeight * scale;
     
     // Получаем первую страницу
-    const page = pdfDoc.getPages()[0];
+    const pages = pdfDoc.getPages();
+    const firstPage = pages[0];
     
-    // Добавляем подпись в фиолетовое поле
-    page.drawImage(signatureImage, {
-      x: 50,
-      y: height - 220,
-      width: signatureDims.width,
-      height: signatureDims.height,
-      color: rgb(0.5, 0, 0.5) // Фиолетовый цвет
+    // Координаты для размещения подписи (внизу страницы)
+    const signatureX = 350;
+    const signatureY = height - 300; // Размещаем подпись рядом с датой
+    
+    // Добавляем изображение подписи на страницу
+    firstPage.drawImage(signatureImage, {
+      x: signatureX,
+      y: signatureY,
+      width: scaledWidth,
+      height: scaledHeight,
     });
     
     console.log('Подпись успешно добавлена в PDF');
@@ -212,6 +258,37 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
   }
 }
 
+/**
+ * Получает координаты текста из PDF-файла
+ * @param {string} pdfPath - путь к PDF-файлу
+ * @returns {Promise<void>} - выводит координаты в консоль
+ */
+async function getTextPositions(pdfPath) {
+    try {
+        // Получаем абсолютный путь к файлу
+        const absolutePath = path.resolve(pdfPath);
+        console.log(`Анализ PDF-файла: ${absolutePath}`);
+        
+        // Загружаем PDF-файл
+        const pdf = await pdfjsLib.getDocument(absolutePath).promise;
+        console.log(`PDF загружен, количество страниц: ${pdf.numPages}`);
+        
+        // Получаем первую страницу
+        const page = await pdf.getPage(1);
+        
+        // Получаем текстовое содержимое
+        const content = await page.getTextContent();
+        
+        console.log('Координаты текста в PDF:');
+        content.items.forEach(item => {
+            console.log(`Текст: "${item.str}", Координаты: x=${item.transform[4]}, y=${item.transform[5]}`);
+        });
+    } catch (error) {
+        console.error('Ошибка при анализе PDF:', error);
+    }
+}
+
 module.exports = {
-  generatePdfFromData
+  generatePdfFromData,
+  getTextPositions
 }; 

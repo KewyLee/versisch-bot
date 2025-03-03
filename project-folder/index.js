@@ -7,7 +7,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 // Импортируем функцию из нового модуля для генерации PDF
-const { generatePdfFromData } = require('./utils/pdfGenerator');
+const { generatePdfFromData, getTextPositions } = require('./utils/pdfGenerator');
 
 // Получаем конфигурацию из переменных окружения
 const config = {
@@ -138,6 +138,26 @@ bot.start((ctx) => {
       ]
     }
   });
+});
+
+// Обработчик команды /analyze_pdf для получения координат текста в PDF
+bot.command('analyze_pdf', async (ctx) => {
+  try {
+    const pdfPath = path.join(__dirname, 'BIG_Vermittlervollmacht.pdf');
+    
+    if (!fs.existsSync(pdfPath)) {
+      return ctx.reply('Файл шаблона PDF не найден. Пожалуйста, убедитесь, что файл BIG_Vermittlervollmacht.pdf находится в директории проекта.');
+    }
+    
+    ctx.reply('Анализирую PDF-файл, пожалуйста, подождите...');
+    
+    await getTextPositions(pdfPath);
+    
+    ctx.reply('Анализ PDF-файла завершен. Проверьте консоль сервера для просмотра координат текста.');
+  } catch (error) {
+    console.error('Ошибка при анализе PDF:', error);
+    ctx.reply(`Произошла ошибка при анализе PDF: ${error.message}`);
+  }
 });
 
 // API для сохранения данных формы
