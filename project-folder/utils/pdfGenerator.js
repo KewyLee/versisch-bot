@@ -16,7 +16,7 @@ const path = require('path');
  * Заполняет PDF-шаблон данными пользователя
  * @param {Object} formData - Данные формы от пользователя
  * @param {string} signatureData - Base64-строка с изображением подписи
- * @returns {Promise<Buffer>} - Промис с буфером заполненного PDF-документа
+ * @returns {Promise<Buffer>} - Промис с буфером заполненного PDF
  */
 async function generatePdfFromData(formData, signatureData) {
   try {
@@ -39,20 +39,122 @@ async function generatePdfFromData(formData, signatureData) {
     // Загружаем PDF документ
     const pdfDoc = await PDFDocument.load(templateBytes);
     
-    // Получаем поля формы
-    const form = pdfDoc.getForm();
-    const fields = form.getFields();
+    // Получаем первую страницу
+    const pages = pdfDoc.getPages();
+    const firstPage = pages[0];
+    const { width, height } = firstPage.getSize();
     
-    console.log(`PDF содержит ${fields.length} полей формы`);
+    // Загружаем стандартный шрифт
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     
-    // Заполняем поля формы, если они есть
-    if (fields.length > 0) {
-      // Заполняем данные формы
-      fillFormFields(form, formData);
-    } else {
-      // Если полей нет, добавляем данные как текст поверх PDF
-      await addTextOverlay(pdfDoc, formData);
+    // Выделяем данные из formData
+    let lastName = '', firstName = '';
+    if (formData.fullName) {
+      const nameParts = formData.fullName.split(' ');
+      lastName = nameParts[0] || '';
+      firstName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
     }
+    
+    // Извлекаем адресные данные
+    let street = '', houseNumber = '', zipCode = '', city = '';
+    if (formData.insuranceAddress) {
+      street = extractStreet(formData.insuranceAddress);
+      houseNumber = extractHouseNumber(formData.insuranceAddress);
+      zipCode = extractZipCode(formData.insuranceAddress);
+      city = extractCity(formData.insuranceAddress);
+    }
+    
+    // Данные для заполнения
+    const data = {
+      lastName: lastName,
+      firstName: firstName,
+      birthDate: formData.birthDate || '',
+      birthSurname: formData.birthSurname || '',
+      birthplace: formData.hometown || '',
+      street: street,
+      houseNumber: houseNumber,
+      zipCode: zipCode,
+      city: city,
+      email: formData.email || '',
+      phone: formData.phone || '',
+      date: formData.datum || new Date().toLocaleDateString('de-DE'),
+      place: formData.ort || 'Bergheim'
+    };
+    
+    console.log('Подготовленные данные для заполнения PDF:', data);
+    
+    // Параметры текста
+    const fontSize = 12;
+    const textOptions = {
+      font: font,
+      size: fontSize,
+      color: rgb(0, 0, 0)
+    };
+    
+    // Заполнение данных на странице
+    // Позиции нужно будет скорректировать под конкретный шаблон
+    let yPosition = height - 100; // Начальная Y-позиция
+    const lineHeight = fontSize * 1.5;
+    
+    // Персональные данные (примерные позиции, требуется корректировка)
+    firstPage.drawText(`${data.lastName}`, { ...textOptions, x: 150, y: yPosition });
+    yPosition -= lineHeight;
+    
+    firstPage.drawText(`${data.firstName}`, { ...textOptions, x: 150, y: yPosition });
+    yPosition -= lineHeight;
+    
+    if (data.birthDate) {
+      firstPage.drawText(data.birthDate, { ...textOptions, x: 150, y: yPosition });
+      yPosition -= lineHeight;
+    }
+    
+    if (data.birthSurname) {
+      firstPage.drawText(data.birthSurname, { ...textOptions, x: 150, y: yPosition });
+      yPosition -= lineHeight;
+    }
+    
+    if (data.birthplace) {
+      firstPage.drawText(data.birthplace, { ...textOptions, x: 150, y: yPosition });
+      yPosition -= lineHeight;
+    }
+    
+    // Пропуск нескольких строк для адреса
+    yPosition -= lineHeight * 2;
+    
+    // Адресные данные
+    if (data.street) {
+      firstPage.drawText(data.street, { ...textOptions, x: 150, y: yPosition });
+      if (data.houseNumber) {
+        const streetWidth = font.widthOfTextAtSize(data.street, fontSize);
+        firstPage.drawText(data.houseNumber, { ...textOptions, x: 150 + streetWidth + 5, y: yPosition });
+      }
+      yPosition -= lineHeight;
+    }
+    
+    if (data.zipCode || data.city) {
+      let addressText = '';
+      if (data.zipCode) addressText += data.zipCode;
+      if (data.zipCode && data.city) addressText += ' ';
+      if (data.city) addressText += data.city;
+      
+      firstPage.drawText(addressText, { ...textOptions, x: 150, y: yPosition });
+      yPosition -= lineHeight;
+    }
+    
+    // Контактные данные
+    if (data.email) {
+      firstPage.drawText(data.email, { ...textOptions, x: 150, y: yPosition });
+      yPosition -= lineHeight;
+    }
+    
+    if (data.phone) {
+      firstPage.drawText(data.phone, { ...textOptions, x: 150, y: yPosition });
+      yPosition -= lineHeight;
+    }
+    
+    // Область для места и даты (обычно внизу формы)
+    firstPage.drawText(data.place, { ...textOptions, x: 150, y: 100 });
+    firstPage.drawText(data.date, { ...textOptions, x: 350, y: 100 });
     
     // Добавляем подпись, если она была предоставлена
     if (signatureData) {
@@ -69,268 +171,6 @@ async function generatePdfFromData(formData, signatureData) {
     
   } catch (error) {
     console.error(`Ошибка при заполнении PDF с pdf-lib: ${error.message}`);
-    throw error;
-  }
-}
-
-/**
- * Заполняет поля формы данными
- * @param {PDFForm} form - Форма PDF документа
- * @param {Object} formData - Данные формы от пользователя
- */
-function fillFormFields(form, formData) {
-  // Логируем доступные поля для диагностики
-  const fields = form.getFields();
-  console.log('Доступные поля формы:');
-  fields.forEach(field => {
-    const name = field.getName();
-    const type = field.constructor.name;
-    console.log(`- ${name} (${type})`);
-  });
-  
-  try {
-    // Маппинг полей формы (необходимо адаптировать под конкретные имена полей в вашей форме)
-    const formMapping = {
-      // Персональные данные
-      'Name': formData.fullName ? formData.fullName.split(' ')[0] : '',
-      'Vorname': formData.fullName ? formData.fullName.split(' ').slice(1).join(' ') : '',
-      'Geburtsdatum': formData.birthDate || '',
-      'Geburtsname': formData.birthSurname || '',
-      'Geburtsort': formData.hometown || '',
-      
-      // Адрес
-      'Strasse': formData.insuranceAddress ? extractStreet(formData.insuranceAddress) : '',
-      'Hausnummer': formData.insuranceAddress ? extractHouseNumber(formData.insuranceAddress) : '',
-      'PLZ': formData.insuranceAddress ? extractZipCode(formData.insuranceAddress) : '',
-      'Ort': formData.insuranceAddress ? extractCity(formData.insuranceAddress) : '',
-      
-      // Контактные данные
-      'Email': formData.email || '',
-      'Telefon': formData.phone || '',
-      
-      // Место и дата
-      'Ort_Unterschrift': formData.ort || 'Bergheim',
-      'Datum': formData.datum || new Date().toLocaleDateString('de-DE')
-    };
-    
-    // Заполняем каждое поле
-    Object.keys(formMapping).forEach(fieldName => {
-      try {
-        if (formMapping[fieldName] && fieldExists(form, fieldName)) {
-          const field = form.getTextField(fieldName);
-          field.setText(formMapping[fieldName]);
-        }
-      } catch (fieldError) {
-        console.warn(`Не удалось заполнить поле ${fieldName}: ${fieldError.message}`);
-      }
-    });
-    
-    // Проверяем наличие чекбоксов и устанавливаем их
-    try {
-      if (fieldExists(form, 'Einverstaendnis')) {
-        const checkbox = form.getCheckBox('Einverstaendnis');
-        checkbox.check();
-      }
-    } catch (checkboxError) {
-      console.warn(`Не удалось установить чекбокс: ${checkboxError.message}`);
-    }
-    
-    // Сохраняем форму
-    form.flatten();
-    console.log('Поля формы успешно заполнены');
-    
-  } catch (error) {
-    console.error(`Ошибка при заполнении полей формы: ${error.message}`);
-    throw error;
-  }
-}
-
-/**
- * Проверяет существование поля в форме
- * @param {PDFForm} form - Форма PDF документа
- * @param {string} fieldName - Имя поля для проверки
- * @returns {boolean} - true если поле существует
- */
-function fieldExists(form, fieldName) {
-  try {
-    const fields = form.getFields();
-    return fields.some(field => field.getName() === fieldName);
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * Добавляет текст поверх PDF, если форма не содержит полей
- * @param {PDFDocument} pdfDoc - PDF документ
- * @param {Object} formData - Данные формы от пользователя
- */
-async function addTextOverlay(pdfDoc, formData) {
-  try {
-    // Загружаем шрифт
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    
-    // Получаем первую страницу
-    const page = pdfDoc.getPages()[0];
-    
-    // Размеры и позиции (необходимо адаптировать под конкретный PDF)
-    const fontSize = 10;
-    const lineHeight = fontSize * 1.5;
-    let y = page.getHeight() - 150; // Начальная позиция Y
-    
-    // Добавляем персональные данные
-    page.drawText('Persönliche Angaben des Versicherten:', {
-      x: 50,
-      y: y,
-      size: fontSize + 2,
-      font,
-      color: rgb(0, 0, 0)
-    });
-    
-    y -= lineHeight * 1.5;
-    
-    // Имя и фамилия
-    if (formData.fullName) {
-      const nameParts = formData.fullName.split(' ');
-      const lastName = nameParts[0];
-      const firstName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
-      
-      page.drawText(`Name: ${lastName}`, {
-        x: 50,
-        y: y,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0)
-      });
-      
-      if (firstName) {
-        page.drawText(`Vorname: ${firstName}`, {
-          x: 250,
-          y: y,
-          size: fontSize,
-          font,
-          color: rgb(0, 0, 0)
-        });
-      }
-    }
-    
-    y -= lineHeight;
-    
-    // Дата рождения
-    if (formData.birthDate) {
-      page.drawText(`Geburtsdatum: ${formData.birthDate}`, {
-        x: 50,
-        y: y,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0)
-      });
-    }
-    
-    // Фамилия при рождении
-    if (formData.birthSurname) {
-      page.drawText(`Geburtsname: ${formData.birthSurname}`, {
-        x: 250,
-        y: y,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0)
-      });
-    }
-    
-    y -= lineHeight;
-    
-    // Место рождения
-    if (formData.hometown) {
-      page.drawText(`Geburtsort: ${formData.hometown}`, {
-        x: 50,
-        y: y,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0)
-      });
-    }
-    
-    y -= lineHeight;
-    
-    // Адрес
-    if (formData.insuranceAddress) {
-      const addressParts = formData.insuranceAddress.split(',');
-      
-      if (addressParts.length > 1) {
-        page.drawText(`Straße: ${addressParts[0]}`, {
-          x: 50,
-          y: y,
-          size: fontSize,
-          font,
-          color: rgb(0, 0, 0)
-        });
-        
-        y -= lineHeight;
-        
-        page.drawText(`Ort: ${addressParts[1].trim()}`, {
-          x: 50,
-          y: y,
-          size: fontSize,
-          font,
-          color: rgb(0, 0, 0)
-        });
-      } else {
-        page.drawText(`Adresse: ${formData.insuranceAddress}`, {
-          x: 50,
-          y: y,
-          size: fontSize,
-          font,
-          color: rgb(0, 0, 0)
-        });
-      }
-    }
-    
-    y -= lineHeight;
-    
-    // Email и телефон
-    if (formData.email) {
-      page.drawText(`Email: ${formData.email}`, {
-        x: 50,
-        y: y,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0)
-      });
-    }
-    
-    if (formData.phone) {
-      page.drawText(`Telefon: ${formData.phone}`, {
-        x: 250,
-        y: y,
-        size: fontSize,
-        font,
-        color: rgb(0, 0, 0)
-      });
-    }
-    
-    // Добавляем место и дату в нижней части
-    y = 100;
-    
-    page.drawText(`Ort: ${formData.ort || 'Bergheim'}`, {
-      x: 50,
-      y: y,
-      size: fontSize,
-      font,
-      color: rgb(0, 0, 0)
-    });
-    
-    page.drawText(`Datum: ${formData.datum || new Date().toLocaleDateString('de-DE')}`, {
-      x: 250,
-      y: y,
-      size: fontSize,
-      font,
-      color: rgb(0, 0, 0)
-    });
-    
-    console.log('Текст успешно добавлен поверх PDF');
-  } catch (error) {
-    console.error(`Ошибка при добавлении текста: ${error.message}`);
     throw error;
   }
 }
@@ -357,10 +197,10 @@ async function addSignatureToDocument(pdfDoc, signatureData) {
     // Получаем первую страницу
     const page = pdfDoc.getPages()[0];
     
-    // Добавляем подпись в правом нижнем углу
+    // Добавляем подпись в позицию подписи (позицию нужно настроить)
     page.drawImage(signatureImage, {
-      x: page.getWidth() - signatureDims.width - 50,
-      y: 100 - signatureDims.height / 2,
+      x: 150,
+      y: 80,
       width: signatureDims.width,
       height: signatureDims.height
     });
