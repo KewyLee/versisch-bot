@@ -164,7 +164,16 @@ async function generatePdfFromData(formData, signatureData) {
       console.log(`Добавлена фамилия: ${lastName} (транслитерация: ${transliteratedLastName})`);
     }
     
-
+    // Номер страховки
+    if (insuranceNumber) {
+      firstPage.drawText(insuranceNumber, { 
+        ...textOptions, 
+        x: fieldCoordinates.insuranceNumber.x, 
+        y: fieldCoordinates.insuranceNumber.y 
+      });
+      console.log(`Добавлен номер страховки: ${insuranceNumber}`);
+    }
+    
     // Улица
     if (street) {
       firstPage.drawText(street, { 
@@ -205,6 +214,16 @@ async function generatePdfFromData(formData, signatureData) {
       console.log(`Добавлен город: ${city}`);
     }
     
+    // Страховая компания (с транслитерацией)
+    if (insuranceCompany) {
+      const transliteratedCompany = transliterate(insuranceCompany);
+      firstPage.drawText(transliteratedCompany, { 
+        ...textOptions, 
+        x: fieldCoordinates.insuranceCompany.x, 
+        y: fieldCoordinates.insuranceCompany.y 
+      });
+      console.log(`Добавлена страховая компания: ${insuranceCompany} (транслитерация: ${transliteratedCompany})`);
+    }
     
     // Дата рождения
     if (birthDate) {
@@ -245,7 +264,14 @@ async function generatePdfFromData(formData, signatureData) {
       console.log(`Создана директория: ${outputDir}`);
     }
     
-    const outputPath = path.join(outputDir, `vollmacht_${Date.now()}.pdf`);
+    // Используем временный файл для Heroku
+    const tempDir = process.env.NODE_ENV === 'production' ? '/tmp' : outputDir;
+    if (process.env.NODE_ENV === 'production' && !fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+      console.log(`Создана временная директория: ${tempDir}`);
+    }
+    
+    const outputPath = path.join(tempDir, `vollmacht_${Date.now()}.pdf`);
     fs.writeFileSync(outputPath, pdfBuffer);
     console.log(`PDF успешно создан: ${outputPath}, размер: ${pdfBuffer.length} байт`);
     

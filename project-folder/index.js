@@ -140,64 +140,67 @@ bot.start((ctx) => {
   });
 });
 
-// Функция для отправки данных администратору
+/**
+ * Отправляет данные формы и PDF администратору через Telegram
+ * @param {Object} formData - данные формы
+ * @param {string} pdfPath - путь к PDF-файлу
+ * @param {string} photoPath - путь к фотографии (опционально)
+ * @returns {Promise<void>}
+ */
 async function sendDataToAdmin(formData, pdfPath, photoPath) {
   try {
-    console.log('Отправка данных администратору...');
+    console.log('Начинаем отправку данных администратору...');
     
-    // Проверяем существование PDF файла
-    if (!fs.existsSync(pdfPath)) {
-      throw new Error(`PDF файл не найден: ${pdfPath}`);
-    }
-    
-    // Формируем сообщение с данными пользователя
-    let message = `🔔 *Новая заявка от пользователя*\n\n`;
-    message += `👤 *Имя*: ${formData.firstName || ''} ${formData.lastName || ''}\n`;
-    
-    if (formData.insuranceNumber) {
-      message += `📋 *Номер страховки*: ${formData.insuranceNumber}\n`;
-    }
-    
-    if (formData.insuranceAddress) {
-      message += `🏠 *Адрес*: ${formData.insuranceAddress}\n`;
-    }
-    
-    if (formData.insuranceCompany) {
-      message += `🏢 *Страховая компания*: ${formData.insuranceCompany}\n`;
-    }
-    
-    if (formData.birthDate) {
-      message += `🎂 *Дата рождения*: ${formData.birthDate}\n`;
-    }
-    
-    // Получаем ID чата администратора из конфигурации
+    // Проверяем наличие ID администратора
     const adminChatId = process.env.ADMIN_CHAT_ID;
-    
     if (!adminChatId) {
-      console.warn('ID чата администратора не указан в конфигурации');
-      return false;
+      throw new Error('ID чата администратора не указан в переменных окружения');
     }
     
-    // Отправляем сообщение администратору
-    await bot.telegram.sendMessage(adminChatId, message, { parse_mode: 'Markdown' });
+    // Формируем текст сообщения
+    let messageText = '📋 *Новая заявка*\n\n';
     
-    // Отправляем PDF файл
-    console.log(`Отправка PDF файла: ${pdfPath}`);
-    await bot.telegram.sendDocument(adminChatId, {
-      source: fs.readFileSync(pdfPath),
-      filename: path.basename(pdfPath)
-    });
+    if (formData.firstName) messageText += `*Имя:* ${formData.firstName}\n`;
+    if (formData.lastName) messageText += `*Фамилия:* ${formData.lastName}\n`;
+    if (formData.insuranceNumber) messageText += `*Номер страховки:* ${formData.insuranceNumber}\n`;
+    if (formData.birthDate) messageText += `*Дата рождения:* ${formData.birthDate}\n`;
+    if (formData.insuranceCompany) messageText += `*Страховая компания:* ${formData.insuranceCompany}\n`;
     
-    // Отправляем фото подписи, если оно есть
+    // Адрес
+    if (formData.addressComponents) {
+      messageText += '\n*Адрес:*\n';
+      if (formData.addressComponents.street) messageText += `Улица: ${formData.addressComponents.street}\n`;
+      if (formData.addressComponents.houseNumber) messageText += `Дом: ${formData.addressComponents.houseNumber}\n`;
+      if (formData.addressComponents.zipCode) messageText += `Индекс: ${formData.addressComponents.zipCode}\n`;
+      if (formData.addressComponents.city) messageText += `Город: ${formData.addressComponents.city}\n`;
+    } else if (formData.insuranceAddress) {
+      messageText += `\n*Адрес:* ${formData.insuranceAddress}\n`;
+    }
+    
+    // Отправляем текстовое сообщение
+    console.log('Отправка текстового сообщения администратору...');
+    await bot.telegram.sendMessage(adminChatId, messageText, { parse_mode: 'Markdown' });
+    
+    // Отправляем PDF-файл, если он есть
+    if (pdfPath && fs.existsSync(pdfPath)) {
+      console.log(`Отправка PDF-файла: ${pdfPath}`);
+      await bot.telegram.sendDocument(adminChatId, {
+        source: fs.readFileSync(pdfPath),
+        filename: path.basename(pdfPath)
+      });
+    } else {
+      console.warn('PDF-файл не найден или не указан');
+    }
+    
+    // Отправляем фото, если оно есть
     if (photoPath && fs.existsSync(photoPath)) {
-      console.log(`Отправка фото подписи: ${photoPath}`);
+      console.log(`Отправка фото: ${photoPath}`);
       await bot.telegram.sendPhoto(adminChatId, {
         source: fs.readFileSync(photoPath)
       });
     }
     
     console.log('Данные успешно отправлены администратору');
-    return true;
   } catch (error) {
     console.error('Ошибка при отправке данных администратору:', error);
     throw error;
@@ -208,70 +211,85 @@ async function sendDataToAdmin(formData, pdfPath, photoPath) {
 app.post('/api/submit-form', async (req, res) => {
   try {
     console.log('Получен запрос на сохранение данных формы');
+    
+    // Добавляем дополнительное логирование
+    console.log('Данные формы:', JSON.stringify(req.body, null, 2));
+    
     const formData = req.body;
     
-    // Проверяем наличие обязательных полей
-    if (!formData.firstName || !formData.lastName) {
-      return res.status(400).json({ success: false, error: 'Не указаны обязательные поля' });
+    // Проверяем наличие необходимых данных
+    if (!formData) {
+      console.error('Ошибка: Данные формы отсутствуют');
+      return res.status(400).json({ success: false, error: 'Данные формы отсутствуют' });
     }
     
-    console.log('Данные формы:', formData);
+    // Устанавливаем таймаут для ответа, чтобы избежать прерывания запроса
+    req.setTimeout(60000); // 60 секунд
+    res.setTimeout(60000); // 60 секунд
     
-    // Обрабатываем адрес, если он есть
-    if (formData.insuranceAddress) {
-      const addressComponents = parseAddress(formData.insuranceAddress);
-      formData.addressComponents = addressComponents;
-      console.log('Разобранный адрес:', addressComponents);
-    }
-    
-    // Создаем PDF на основе данных формы
-    console.log('Создание PDF...');
-    let pdfPath;
-    try {
-      pdfPath = await generatePdfFromData(formData, formData.signatureData);
-      console.log(`PDF успешно создан: ${pdfPath}`);
-    } catch (error) {
-      console.error('Ошибка при создании PDF:', error);
-      return res.status(500).json({ success: false, error: `Ошибка при создании PDF: ${error.message}` });
-    }
-    
-    // Сохраняем подпись как отдельное изображение, если она есть
+    let pdfPath = null;
     let photoPath = null;
-    if (formData.signatureData) {
-      try {
-        // Удаляем префикс data:image/png;base64, если он есть
-        const base64Data = formData.signatureData.replace(/^data:image\/png;base64,/, '');
-        
-        // Создаем директорию для подписей, если она не существует
-        const signatureDir = path.join(__dirname, 'signatures');
-        if (!fs.existsSync(signatureDir)) {
-          fs.mkdirSync(signatureDir, { recursive: true });
-        }
-        
-        // Сохраняем подпись как файл
-        photoPath = path.join(signatureDir, `signature_${Date.now()}.png`);
-        fs.writeFileSync(photoPath, Buffer.from(base64Data, 'base64'));
-        console.log(`Подпись сохранена: ${photoPath}`);
-      } catch (error) {
-        console.error('Ошибка при сохранении подписи:', error);
-        // Продолжаем выполнение даже при ошибке сохранения подписи
-      }
-    }
     
-    // Отправляем данные администратору
     try {
+      // Генерация PDF
+      console.log('Начинаем генерацию PDF...');
+      
+      // Проверяем наличие директории для выходных файлов
+      const outputDir = path.join(__dirname, 'output');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+        console.log(`Создана директория для выходных файлов: ${outputDir}`);
+      }
+      
+      // Генерируем PDF
+      pdfPath = await generatePdfFromData(formData, formData.signature);
+      console.log(`PDF успешно создан: ${pdfPath}`);
+      
+      // Сохраняем фото, если оно есть
+      if (formData.photo) {
+        console.log('Сохранение фотографии...');
+        const photoData = formData.photo.replace(/^data:image\/\w+;base64,/, '');
+        const photoBuffer = Buffer.from(photoData, 'base64');
+        photoPath = path.join(__dirname, 'output', `photo_${Date.now()}.jpg`);
+        fs.writeFileSync(photoPath, photoBuffer);
+        console.log(`Фото сохранено: ${photoPath}`);
+      }
+      
+      // Отправляем данные администратору
+      console.log('Отправка данных администратору...');
       await sendDataToAdmin(formData, pdfPath, photoPath);
-      console.log('Данные успешно отправлены администратору');
+      
+      // Отправляем успешный ответ
+      console.log('Данные успешно сохранены и отправлены');
+      return res.json({ success: true, message: 'Данные успешно сохранены и отправлены' });
+      
     } catch (error) {
-      console.error('Ошибка при отправке данных администратору:', error);
-      // Продолжаем выполнение даже при ошибке отправки
+      console.error('Ошибка при обработке данных формы:', error);
+      
+      // Очищаем временные файлы в случае ошибки
+      try {
+        if (pdfPath && fs.existsSync(pdfPath)) {
+          fs.unlinkSync(pdfPath);
+          console.log(`Удален временный файл PDF: ${pdfPath}`);
+        }
+        if (photoPath && fs.existsSync(photoPath)) {
+          fs.unlinkSync(photoPath);
+          console.log(`Удален временный файл фото: ${photoPath}`);
+        }
+      } catch (cleanupError) {
+        console.error('Ошибка при очистке временных файлов:', cleanupError);
+      }
+      
+      throw error; // Пробрасываем ошибку дальше для общей обработки
     }
     
-    // Отправляем успешный ответ
-    res.json({ success: true, message: 'Данные успешно сохранены' });
   } catch (error) {
-    console.error('Ошибка при обработке запроса:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Ошибка при сохранении данных формы:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Ошибка при сохранении данных формы', 
+      details: error.message 
+    });
   }
 });
 
