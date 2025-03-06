@@ -26,10 +26,10 @@ function atob(base64) {
 }
 
 /**
- * Создает PDF документ на основе данных формы
+ * Создает PDF-документ на основе данных формы
  * @param {Object} formData - данные формы
  * @param {string} signatureData - данные подписи в формате base64
- * @returns {Promise<string>} - путь к созданному PDF файлу
+ * @returns {Promise<string>} - путь к созданному PDF-файлу
  */
 async function generatePdfFromData(formData, signatureData) {
   try {
@@ -128,16 +128,16 @@ async function generatePdfFromData(formData, signatureData) {
     // Координаты полей на основе анализа PDF
     console.log('Настройка координат полей...');
     const fieldCoordinates = {
-      firstName: { x: 150, y: height - 120 },
-      lastName: { x: 300, y: height - 120 },
-      insuranceNumber: { x: 150, y: height - 180 },
-      street: { x: 150, y: height - 210 },
-      houseNumber: { x: 350, y: height - 210 },
-      zipCode: { x: 150, y: height - 240 },
-      city: { x: 250, y: height - 240 },
-      insuranceCompany: { x: 200, y: height - 300 },
-      birthDate: { x: 200, y: height - 270 },
-      date: { x: 150, y: height - 400 }
+      // Координаты на основе анализа PDF-файла
+      firstName: { x: 42, y: height - 570 },    // Vorname
+      lastName: { x: 42, y: height - 592 },     // Name
+      street: { x: 311, y: height - 592 },       // Straße
+      houseNumber: { x: 510, y: height - 592 },  // Hausnummer
+      zipCode: { x: 311, y: height - 570 },      // PLZ
+      city: { x: 396, y: height - 570 },         // Ort
+      birthDate: { x: 42, y: height - 547 },    // Geburtsdatum
+      date: { x: 212, y: height - 343 },         // Datum
+      signature: { x: 320, y: height - 343 }     // Unterschrift
     };
     
     console.log('Заполнение полей формы...');
@@ -332,9 +332,9 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
     const pages = pdfDoc.getPages();
     const firstPage = pages[0];
     
-    // Координаты для размещения подписи (внизу страницы)
-    const signatureX = 350;
-    const signatureY = height - 400; // Размещаем подпись рядом с датой
+    // Координаты для размещения подписи (используем координаты из fieldCoordinates)
+    const signatureX = 400;
+    const signatureY = height - 500; // Координаты из анализа PDF
     console.log(`Координаты подписи: x=${signatureX}, y=${signatureY}`);
     
     // Добавляем изображение подписи на страницу
@@ -353,60 +353,6 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
   }
 }
 
-/**
- * Получает координаты текста из PDF-файла
- * @param {string} pdfPath - путь к PDF-файлу
- * @returns {Promise<void>} - выводит координаты в консоль
- */
-async function getTextPositions(pdfPath) {
-  try {
-    // Проверяем доступность модуля pdfjs-dist
-    if (!pdfjsLib) {
-      console.error('Модуль pdfjs-dist не установлен. Установите его с помощью npm install pdfjs-dist');
-      return;
-    }
-    
-    // Проверяем существование файла
-    if (!fs.existsSync(pdfPath)) {
-      console.error(`Файл не найден: ${pdfPath}`);
-      return;
-    }
-    
-    // Получаем абсолютный путь к файлу
-    const absolutePath = path.resolve(pdfPath);
-    console.log(`Анализ PDF-файла: ${absolutePath}`);
-    
-    // Читаем файл в буфер
-    const pdfBuffer = fs.readFileSync(pdfPath);
-    
-    // Загружаем PDF-файл из буфера
-    const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise;
-    console.log(`PDF загружен, количество страниц: ${pdf.numPages}`);
-    
-    // Получаем первую страницу
-    const page = await pdf.getPage(1);
-    
-    // Получаем текстовое содержимое
-    const content = await page.getTextContent();
-    
-    console.log('Координаты текста в PDF:');
-    content.items.forEach(item => {
-      console.log(`Текст: "${item.str}", Координаты: x=${item.transform[4]}, y=${item.transform[5]}`);
-    });
-    
-    // Возвращаем координаты для возможного использования
-    return content.items.map(item => ({
-      text: item.str,
-      x: item.transform[4],
-      y: item.transform[5]
-    }));
-  } catch (error) {
-    console.error('Ошибка при анализе PDF:', error);
-    throw error;
-  }
-}
-
 module.exports = {
-  generatePdfFromData,
-  getTextPositions
+  generatePdfFromData
 }; 
