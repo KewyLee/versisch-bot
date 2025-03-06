@@ -35,11 +35,51 @@ async function generatePdfFromData(formData, signatureData) {
   try {
     console.log('=== НАЧАЛО ГЕНЕРАЦИИ PDF ===');
     
-    // Загружаем шаблон PDF
-    const templatePath = path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
+    // Загружаем шаблон PDF - используем разные пути для разных окружений
+    let templatePath;
+    
+    // Проверяем наличие переменной окружения с путем к шаблону
+    if (process.env.PDF_TEMPLATE_PATH) {
+      templatePath = process.env.PDF_TEMPLATE_PATH;
+      console.log(`Используется путь к шаблону из переменной окружения: ${templatePath}`);
+    } else {
+      // Определяем путь к шаблону в зависимости от окружения
+      if (process.env.NODE_ENV === 'production') {
+        // На Heroku файлы находятся в корневой директории
+        templatePath = path.join(process.cwd(), 'BIG_Vermittlervollmacht.pdf');
+      } else {
+        // Локальная разработка
+        templatePath = path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
+      }
+      console.log(`Определен путь к шаблону: ${templatePath}`);
+    }
+    
     console.log(`Загрузка шаблона PDF: ${templatePath}`);
     
+    // Проверяем существование файла и выводим информацию о директории
     if (!fs.existsSync(templatePath)) {
+      console.error(`Шаблон PDF не найден: ${templatePath}`);
+      console.log('Текущая директория:', process.cwd());
+      console.log('Содержимое текущей директории:');
+      try {
+        const files = fs.readdirSync(process.cwd());
+        files.forEach(file => console.log(`- ${file}`));
+      } catch (err) {
+        console.error('Ошибка при чтении директории:', err);
+      }
+      
+      // Проверяем директорию проекта
+      const projectDir = path.join(process.cwd(), 'project-folder');
+      if (fs.existsSync(projectDir)) {
+        console.log(`Содержимое директории ${projectDir}:`);
+        try {
+          const projectFiles = fs.readdirSync(projectDir);
+          projectFiles.forEach(file => console.log(`- ${file}`));
+        } catch (err) {
+          console.error('Ошибка при чтении директории проекта:', err);
+        }
+      }
+      
       throw new Error(`Шаблон PDF не найден: ${templatePath}`);
     }
     

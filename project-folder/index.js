@@ -335,8 +335,37 @@ app.get('/api/get-template-pdf', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Сервер запущен на порту ${PORT}`);
-  console.log(`WebApp URL: ${config.webappUrl}`);
-  console.log(`Шаблон PDF: ${config.templatePdfPath}`);
+  console.log(`WebApp URL: ${process.env.APP_URL || 'http://localhost:' + PORT}`);
+  
+  // Проверяем наличие PDF-шаблона
+  const templatePaths = [
+    path.join(__dirname, 'BIG_Vermittlervollmacht.pdf'),
+    path.join(process.cwd(), 'BIG_Vermittlervollmacht.pdf'),
+    path.join(process.cwd(), 'project-folder', 'BIG_Vermittlervollmacht.pdf')
+  ];
+  
+  let templateFound = false;
+  for (const templatePath of templatePaths) {
+    if (fs.existsSync(templatePath)) {
+      console.log(`Шаблон PDF найден: ${templatePath}`);
+      // Устанавливаем переменную окружения с путем к шаблону
+      process.env.PDF_TEMPLATE_PATH = templatePath;
+      templateFound = true;
+      break;
+    }
+  }
+  
+  if (!templateFound) {
+    console.warn('Шаблон PDF не найден. Проверьте наличие файла BIG_Vermittlervollmacht.pdf');
+    console.log('Текущая директория:', process.cwd());
+    console.log('Содержимое текущей директории:');
+    try {
+      const files = fs.readdirSync(process.cwd());
+      files.forEach(file => console.log(`- ${file}`));
+    } catch (err) {
+      console.error('Ошибка при чтении директории:', err);
+    }
+  }
   
   // Запуск бота Telegram
   bot.launch()
