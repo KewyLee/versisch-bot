@@ -165,123 +165,138 @@ bot.command('analyze_pdf', async (ctx) => {
   }
 });
 
-// API для сохранения данных формы
-app.post('/api/submit-form', upload.single('photo'), async (req, res) => {
+// Функция для отправки данных администратору
+async function sendDataToAdmin(formData, pdfPath, photoPath) {
   try {
-    console.log('Получен запрос на отправку формы');
+    console.log('Отправка данных администратору...');
     
-    if (!req.body.formData) {
-      return res.status(400).json({ success: false, message: 'Отсутствуют данные формы' });
+    // Проверяем существование PDF файла
+    if (!fs.existsSync(pdfPath)) {
+      throw new Error(`PDF файл не найден: ${pdfPath}`);
     }
     
-    const formData = JSON.parse(req.body.formData);
-    const signatureData = req.body.signature;
+    // Формируем сообщение с данными пользователя
+    let message = `🔔 *Новая заявка от пользователя*\n\n`;
+    message += `👤 *Имя*: ${formData.firstName || ''} ${formData.lastName || ''}\n`;
     
-    // Получаем параметры пользователя из запроса
-    // Сначала проверяем параметры запроса
-    if (req.query) {
-      if (req.query.username) {
-        formData.telegramUsername = req.query.username;
-      }
-      if (req.query.userId) {
-        formData.telegramChatId = req.query.userId;
-      }
+    if (formData.insuranceNumber) {
+      message += `📋 *Номер страховки*: ${formData.insuranceNumber}\n`;
     }
     
-    // Также проверяем параметры из тела запроса
-    if (req.body.username) {
-      formData.telegramUsername = req.body.username;
+    if (formData.insuranceAddress) {
+      message += `🏠 *Адрес*: ${formData.insuranceAddress}\n`;
     }
-    if (req.body.telegramChatId) {
-      formData.telegramChatId = req.body.telegramChatId;
+    
+    if (formData.insuranceCompany) {
+      message += `🏢 *Страховая компания*: ${formData.insuranceCompany}\n`;
+    }
+    
+    if (formData.birthDate) {
+      message += `🎂 *Дата рождения*: ${formData.birthDate}\n`;
+    }
+    
+    // Получаем ID чата администратора из конфигурации
+    const adminChatId = process.env.ADMIN_CHAT_ID;
+    
+    if (!adminChatId) {
+      console.warn('ID чата администратора не указан в конфигурации');
+      return false;
+    }
+    
+    // Отправляем сообщение администратору
+    await bot.telegram.sendMessage(adminChatId, message, { parse_mode: 'Markdown' });
+    
+    // Отправляем PDF файл
+    console.log(`Отправка PDF файла: ${pdfPath}`);
+    await bot.telegram.sendDocument(adminChatId, {
+      source: fs.readFileSync(pdfPath),
+      filename: path.basename(pdfPath)
+    });
+    
+    // Отправляем фото подписи, если оно есть
+    if (photoPath && fs.existsSync(photoPath)) {
+      console.log(`Отправка фото подписи: ${photoPath}`);
+      await bot.telegram.sendPhoto(adminChatId, {
+        source: fs.readFileSync(photoPath)
+      });
+    }
+    
+    console.log('Данные успешно отправлены администратору');
+    return true;
+  } catch (error) {
+    console.error('Ошибка при отправке данных администратору:', error);
+    throw error;
+  }
+}
+
+// API для сохранения данных формы
+app.post('/api/submit-form', async (req, res) => {
+  try {
+    console.log('Получен запрос на сохранение данных формы');
+    const formData = req.body;
+    
+    // Проверяем наличие обязательных полей
+    if (!formData.firstName || !formData.lastName) {
+      return res.status(400).json({ success: false, error: 'Не указаны обязательные поля' });
     }
     
     console.log('Данные формы:', formData);
-    console.log('Данные Telegram:', { 
-      username: formData.telegramUsername || 'не указан', 
-      chatId: formData.telegramChatId || 'не указан' 
-    });
     
-    // Обрабатываем адрес перед передачей в функцию генерации PDF
+    // Обрабатываем адрес, если он есть
     if (formData.insuranceAddress) {
       const addressComponents = parseAddress(formData.insuranceAddress);
       formData.addressComponents = addressComponents;
       console.log('Разобранный адрес:', addressComponents);
     }
     
-    // Путь к загруженной фотографии
-    const photoPath = req.file ? req.file.path : null;
-    console.log('Путь к фото:', photoPath);
+    // Создаем PDF на основе данных формы
+    console.log('Создание PDF...');
+    let pdfPath;
+    try {
+      pdfPath = await generatePdfFromData(formData, formData.signatureData);
+      console.log(`PDF успешно создан: ${pdfPath}`);
+    } catch (error) {
+      console.error('Ошибка при создании PDF:', error);
+      return res.status(500).json({ success: false, error: `Ошибка при создании PDF: ${error.message}` });
+    }
     
-    // Заполняем PDF данными пользователя
-    const filledPdfBuffer = await generatePdfFromData(formData, signatureData);
-    
-    // Сохраняем заполненный PDF с расширением .pdf
-    const pdfFileName = `${Date.now()}_filled.pdf`;
-    const pdfPath = `${filledFormsDir}/${pdfFileName}`;
-    fs.writeFileSync(pdfPath, filledPdfBuffer);
-    console.log('PDF сохранен по пути:', pdfPath);
-    
-    // Формируем ID чата пользователя, если есть в данных
-    const userChatId = formData.telegramChatId || req.body.telegramChatId;
-    
-    // Отправляем данные и документы администратору
-    await sendDataToAdmin(formData, pdfPath, photoPath);
-    
-    // Если есть ID чата пользователя, отправляем документ пользователю
-    if (userChatId) {
+    // Сохраняем подпись как отдельное изображение, если она есть
+    let photoPath = null;
+    if (formData.signatureData) {
       try {
-        // Сначала отправляем сообщение о успешной отправке заявки
-        let userMessage = "*Заявка отправлена!*\n";
-        userMessage += "По всем вопросам связанным с оформлением связывайтесь в *вашей группе* с упоминанием Игоря([@helpgermany](https://t.me/helpgermany))\n\n";
-        userMessage += "*Ваши данные:*\n\n";
+        // Удаляем префикс data:image/png;base64, если он есть
+        const base64Data = formData.signatureData.replace(/^data:image\/png;base64,/, '');
         
-        // Добавляем данные пользователя с русскими названиями полей
-        const fieldNames = {
-          fullName: 'Имя и фамилия',
-          birthSurname: 'Фамилия при рождении',
-          birthDate: 'Дата рождения',
-          hometown: 'Место рождения',
-          insuranceAddress: 'Адрес',
-          maritalStatus: 'Семейное положение',
-          email: 'Email',
-          phone: 'Телефон'
-        };
-        
-        // Добавляем данные формы с переводом названий полей
-        Object.keys(formData).forEach(key => {
-          // Не включаем ID чата в сообщение пользователю
-          if (key !== 'telegramChatId' && formData[key]) {
-            const fieldName = fieldNames[key] || key;
-            userMessage += `${fieldName}: \`${formData[key]}\`\n`;
-          }
-        });
-        
-        // Отправляем сообщение с данными
-        await bot.telegram.sendMessage(userChatId, userMessage, { parse_mode: 'Markdown' });
-        
-        // Отправляем фото, если оно есть
-        if (photoPath && fs.existsSync(photoPath)) {
-          await bot.telegram.sendPhoto(userChatId, { source: fs.createReadStream(photoPath) });
+        // Создаем директорию для подписей, если она не существует
+        const signatureDir = path.join(__dirname, 'signatures');
+        if (!fs.existsSync(signatureDir)) {
+          fs.mkdirSync(signatureDir, { recursive: true });
         }
         
-        // Отправляем заполненный PDF с явным указанием типа документа
-        await bot.telegram.sendDocument(userChatId, { 
-          source: fs.createReadStream(pdfPath),
-          filename: pdfFileName 
-        });
-        
-        console.log(`Документ успешно отправлен пользователю в чат: ${userChatId}`);
-      } catch (chatError) {
-        console.error(`Ошибка при отправке документа пользователю: ${chatError.message}`);
-        // Продолжаем работу даже если не удалось отправить документ пользователю
+        // Сохраняем подпись как файл
+        photoPath = path.join(signatureDir, `signature_${Date.now()}.png`);
+        fs.writeFileSync(photoPath, Buffer.from(base64Data, 'base64'));
+        console.log(`Подпись сохранена: ${photoPath}`);
+      } catch (error) {
+        console.error('Ошибка при сохранении подписи:', error);
+        // Продолжаем выполнение даже при ошибке сохранения подписи
       }
     }
     
-    res.json({ success: true, message: 'Данные успешно отправлены' });
+    // Отправляем данные администратору
+    try {
+      await sendDataToAdmin(formData, pdfPath, photoPath);
+      console.log('Данные успешно отправлены администратору');
+    } catch (error) {
+      console.error('Ошибка при отправке данных администратору:', error);
+      // Продолжаем выполнение даже при ошибке отправки
+    }
+    
+    // Отправляем успешный ответ
+    res.json({ success: true, message: 'Данные успешно сохранены' });
   } catch (error) {
-    console.error('Error processing form submission:', error);
-    res.status(500).json({ success: false, message: 'Произошла ошибка при отправке данных: ' + error.message });
+    console.error('Ошибка при обработке запроса:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -322,85 +337,6 @@ app.get('/api/get-template-pdf', (req, res) => {
     res.status(500).send('Ошибка при загрузке PDF-шаблона');
   }
 });
-
-// Функция для отправки данных администратору через Telegram
-async function sendDataToAdmin(formData, pdfPath, photoPath) {
-  try {
-    console.log('Отправка данных администратору:', config.adminChatId);
-    
-    // Получаем имя и фамилию пользователя и имя пользователя Telegram
-    let userName = formData.fullName || 'Пользователь';
-    let telegramUsername = formData.telegramUsername || '';
-
-    // Формируем ссылку на пользователя в формате имя(имя клиента) с ссылкой на Telegram
-    // Используем реальное имя клиента вместо шаблонного текста
-    let userLinkText = `${userName}`;
-    let userLink = '';
-    
-    if (telegramUsername && telegramUsername.trim() !== '') {
-      // Убираем символ @ из имени пользователя, если он есть
-      telegramUsername = telegramUsername.replace(/^@/, '');
-      userLink = `${userLinkText}(https://t.me/${telegramUsername})`;
-      
-      // Отдельно добавляем username после основной ссылки
-      userLink += ` - @${telegramUsername}`;
-    } else if (formData.telegramChatId) {
-      // Если нет имени пользователя, но есть ID чата, используем его
-      userLink = `${userLinkText}(https://t.me/${formData.telegramChatId})`;
-    } else {
-      userLink = userLinkText;
-    }
-    
-    // Формируем сообщение с данными для администратора
-    let adminMessage = `*Новая заявка подана от ${userLink}*\n\n`;
-    adminMessage += `*Данные:*\n\n`;
-    
-    // Добавляем данные пользователя с русскими названиями полей
-    const fieldNames = {
-      fullName: 'Имя и фамилия',
-      birthSurname: 'Фамилия при рождении',
-      birthDate: 'Дата рождения',
-      hometown: 'Место рождения',
-      insuranceAddress: 'Адрес',
-      maritalStatus: 'Семейное положение',
-      email: 'Email',
-      phone: 'Телефон',
-      telegramChatId: 'ID чата Telegram',
-      telegramUsername: 'Имя пользователя Telegram'
-    };
-    
-    // Добавляем все данные формы с форматированием для копирования
-    Object.keys(formData).forEach(key => {
-      if (formData[key] && key !== 'telegramUsername') { // Имя пользователя Telegram уже добавили в ссылку
-        const fieldName = fieldNames[key] || key;
-        adminMessage += `${fieldName}: \`${formData[key]}\`\n`;
-      }
-    });
-    
-    // Сначала отправляем фото, если оно есть
-    if (photoPath && fs.existsSync(photoPath)) {
-      console.log('Отправка фото администратору');
-      await bot.telegram.sendPhoto(config.adminChatId, { source: fs.createReadStream(photoPath) });
-    }
-    
-    // Отправляем сообщение с данными в формате Markdown для возможности копирования
-    await bot.telegram.sendMessage(config.adminChatId, adminMessage, { parse_mode: 'Markdown' });
-    
-    // Отправляем заполненный PDF последним с явным указанием имени файла
-    if (fs.existsSync(pdfPath)) {
-      console.log('Отправка PDF администратору');
-      await bot.telegram.sendDocument(config.adminChatId, { 
-        source: fs.createReadStream(pdfPath),
-        filename: path.basename(pdfPath)
-      });
-    }
-    
-    console.log('Данные успешно отправлены администратору');
-  } catch (error) {
-    console.error(`Ошибка при отправке сообщения администратору: ${error.message}`);
-    throw error;
-  }
-}
 
 // Запускаем сервер
 const PORT = process.env.PORT || 3000;

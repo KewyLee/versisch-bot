@@ -26,16 +26,29 @@ function atob(base64) {
 }
 
 /**
- * Заполняет PDF-шаблон данными пользователя
- * @param {Object} formData - Данные формы от пользователя
- * @param {string} signatureData - Base64-строка с изображением подписи
- * @returns {Promise<Buffer>} - Промис с буфером заполненного PDF-документа
+ * Создает PDF документ на основе данных формы
+ * @param {Object} formData - данные формы
+ * @param {string} signatureData - данные подписи в формате base64
+ * @returns {Promise<string>} - путь к созданному PDF файлу
  */
 async function generatePdfFromData(formData, signatureData) {
   try {
+    console.log('Начало создания PDF документа');
+    
     // Загружаем шаблон PDF
     const templatePath = path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
+    
+    // Проверяем существование шаблона
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(`Шаблон PDF не найден: ${templatePath}`);
+    }
+    
+    console.log(`Используется шаблон: ${templatePath}`);
+    
+    // Читаем файл шаблона
     const pdfBytes = fs.readFileSync(templatePath);
+    
+    // Загружаем PDF документ
     const pdfDoc = await PDFDocument.load(pdfBytes);
     
     // Получаем первую страницу
@@ -61,9 +74,7 @@ async function generatePdfFromData(formData, signatureData) {
       insuranceAddress,
       addressComponents,
       insuranceCompany,
-      birthDate,
-      email,
-      phone
+      birthDate
     } = formData;
     
     // Переменные для адреса
@@ -98,6 +109,8 @@ async function generatePdfFromData(formData, signatureData) {
       date: { x: 50, y: height - 300 }
     };
     
+    console.log('Заполнение полей PDF...');
+    
     // Заполняем поля формы
     
     // Имя
@@ -107,6 +120,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.firstName.x, 
         y: fieldCoordinates.firstName.y 
       });
+      console.log(`Добавлено имя: ${firstName}`);
     }
     
     // Фамилия
@@ -116,6 +130,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.lastName.x, 
         y: fieldCoordinates.lastName.y 
       });
+      console.log(`Добавлена фамилия: ${lastName}`);
     }
     
     // Номер страховки
@@ -125,6 +140,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.insuranceNumber.x, 
         y: fieldCoordinates.insuranceNumber.y 
       });
+      console.log(`Добавлен номер страховки: ${insuranceNumber}`);
     }
     
     // Улица
@@ -134,6 +150,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.street.x, 
         y: fieldCoordinates.street.y 
       });
+      console.log(`Добавлена улица: ${street}`);
     }
     
     // Номер дома
@@ -143,6 +160,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.houseNumber.x, 
         y: fieldCoordinates.houseNumber.y 
       });
+      console.log(`Добавлен номер дома: ${houseNumber}`);
     }
     
     // Индекс
@@ -152,6 +170,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.zipCode.x, 
         y: fieldCoordinates.zipCode.y 
       });
+      console.log(`Добавлен индекс: ${zipCode}`);
     }
     
     // Город
@@ -161,6 +180,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.city.x, 
         y: fieldCoordinates.city.y 
       });
+      console.log(`Добавлен город: ${city}`);
     }
     
     // Страховая компания
@@ -170,6 +190,7 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.insuranceCompany.x, 
         y: fieldCoordinates.insuranceCompany.y 
       });
+      console.log(`Добавлена страховая компания: ${insuranceCompany}`);
     }
     
     // Дата рождения
@@ -179,24 +200,27 @@ async function generatePdfFromData(formData, signatureData) {
         x: fieldCoordinates.birthDate.x, 
         y: fieldCoordinates.birthDate.y 
       });
+      console.log(`Добавлена дата рождения: ${birthDate}`);
     }
     
-    // Текущая дата (серое поле)
+    // Текущая дата
     const currentDate = new Date().toLocaleDateString('de-DE');
     firstPage.drawText(currentDate, { 
       ...textOptions, 
       x: fieldCoordinates.date.x, 
       y: fieldCoordinates.date.y 
     });
+    console.log(`Добавлена текущая дата: ${currentDate}`);
     
     // Добавляем подпись, если она есть
     if (signatureData) {
       await addSignatureToDocument(pdfDoc, signatureData, height);
     }
     
+    console.log('Сохранение PDF...');
+    
     // Сохраняем PDF
     const pdfBuffer = await pdfDoc.save();
-    const outputPath = path.join(__dirname, '..', 'output', `vollmacht_${Date.now()}.pdf`);
     
     // Создаем директорию output, если она не существует
     const outputDir = path.join(__dirname, '..', 'output');
@@ -204,6 +228,10 @@ async function generatePdfFromData(formData, signatureData) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
     
+    // Генерируем имя файла с временной меткой
+    const outputPath = path.join(outputDir, `vollmacht_${Date.now()}.pdf`);
+    
+    // Записываем файл
     fs.writeFileSync(outputPath, pdfBuffer);
     console.log(`PDF успешно создан: ${outputPath}`);
     
