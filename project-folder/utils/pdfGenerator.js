@@ -44,14 +44,26 @@ async function generatePdfFromData(formData, signatureData) {
       console.log(`Используется путь к шаблону из переменной окружения: ${templatePath}`);
     } else {
       // Определяем путь к шаблону в зависимости от окружения
-      if (process.env.NODE_ENV === 'production') {
-        // На Heroku файлы находятся в корневой директории
-        templatePath = path.join(process.cwd(), 'BIG_Vermittlervollmacht.pdf');
-      } else {
-        // Локальная разработка
-        templatePath = path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
+      const possiblePaths = [
+        path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf'),
+        path.join(process.cwd(), 'BIG_Vermittlervollmacht.pdf'),
+        path.join(process.cwd(), 'project-folder', 'BIG_Vermittlervollmacht.pdf'),
+        path.join(__dirname, '..', 'temp.pdf')
+      ];
+      
+      // Ищем файл в возможных местах
+      for (const possiblePath of possiblePaths) {
+        if (fs.existsSync(possiblePath)) {
+          templatePath = possiblePath;
+          console.log(`Найден шаблон PDF: ${templatePath}`);
+          break;
+        }
       }
-      console.log(`Определен путь к шаблону: ${templatePath}`);
+      
+      if (!templatePath) {
+        templatePath = path.join(__dirname, '..', 'BIG_Vermittlervollmacht.pdf');
+        console.log(`Не найден шаблон PDF, используем путь по умолчанию: ${templatePath}`);
+      }
     }
     
     console.log(`Загрузка шаблона PDF: ${templatePath}`);
@@ -78,6 +90,16 @@ async function generatePdfFromData(formData, signatureData) {
         } catch (err) {
           console.error('Ошибка при чтении директории проекта:', err);
         }
+      }
+      
+      // Проверяем директорию utils
+      const utilsDir = path.join(__dirname);
+      console.log(`Содержимое директории ${utilsDir}:`);
+      try {
+        const utilsFiles = fs.readdirSync(utilsDir);
+        utilsFiles.forEach(file => console.log(`- ${file}`));
+      } catch (err) {
+        console.error('Ошибка при чтении директории utils:', err);
       }
       
       throw new Error(`Шаблон PDF не найден: ${templatePath}`);

@@ -341,15 +341,32 @@ app.listen(PORT, () => {
   const templatePaths = [
     path.join(__dirname, 'BIG_Vermittlervollmacht.pdf'),
     path.join(process.cwd(), 'BIG_Vermittlervollmacht.pdf'),
-    path.join(process.cwd(), 'project-folder', 'BIG_Vermittlervollmacht.pdf')
+    path.join(process.cwd(), 'project-folder', 'BIG_Vermittlervollmacht.pdf'),
+    path.join(__dirname, 'temp.pdf')
   ];
   
   let templateFound = false;
+  let foundTemplatePath = null;
+  
   for (const templatePath of templatePaths) {
     if (fs.existsSync(templatePath)) {
       console.log(`Шаблон PDF найден: ${templatePath}`);
+      foundTemplatePath = templatePath;
+      
+      // Если мы на Heroku, копируем шаблон в корневую директорию для надежности
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          const destPath = path.join(process.cwd(), 'BIG_Vermittlervollmacht.pdf');
+          fs.copyFileSync(templatePath, destPath);
+          console.log(`Шаблон PDF скопирован в корневую директорию: ${destPath}`);
+          foundTemplatePath = destPath;
+        } catch (err) {
+          console.error('Ошибка при копировании шаблона PDF:', err);
+        }
+      }
+      
       // Устанавливаем переменную окружения с путем к шаблону
-      process.env.PDF_TEMPLATE_PATH = templatePath;
+      process.env.PDF_TEMPLATE_PATH = foundTemplatePath;
       templateFound = true;
       break;
     }
@@ -368,11 +385,9 @@ app.listen(PORT, () => {
   }
   
   // Запуск бота Telegram
-  bot.launch()
-    .then(() => console.log('Telegram бот запущен'))
-    .catch(err => console.error('Ошибка запуска Telegram бота:', err));
-  
-  // Корректное завершение работы при сигнале остановки
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+  bot.launch().then(() => {
+    console.log('Telegram бот запущен');
+  }).catch(error => {
+    console.error('Ошибка при запуске бота:', error);
+  });
 });
