@@ -31,10 +31,7 @@ project-folder/
 ├── public/
 │   ├── index.html       # Основная страница
 │   ├── styles.css       # Стили основной страницы
-│   ├── app.js           # JavaScript основной страницы
-│   ├── vollmacht.html   # Страница формы доверенности
-│   ├── vollmacht-styles.css  # Стили формы доверенности
-│   └── vollmacht.js     # JavaScript формы доверенности
+│   └── app.js           # JavaScript основной страницы
 └── output/              # Директория для сгенерированных PDF
 ```
 
@@ -43,9 +40,6 @@ project-folder/
 - **index.html** - Основная страница с формой для ввода данных страхования
 - **styles.css** - Стили для основной страницы
 - **app.js** - JavaScript для обработки формы и отправки данных на сервер
-- **vollmacht.html** - Страница с формой доверенности
-- **vollmacht-styles.css** - Стили для формы доверенности
-- **vollmacht.js** - JavaScript для обработки формы доверенности
 
 ## Установка и запуск
 
