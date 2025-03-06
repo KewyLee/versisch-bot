@@ -1,0 +1,836 @@
+{
+  "pdfInfo": {
+    "path": "C:\\Ver Bot\\project-folder\\temp.pdf",
+    "pageCount": 1,
+    "dimensions": {
+      "width": 595.276,
+      "height": 841.89001
+    }
+  },
+  "textItems": [
+    {
+      "text": "big-direkt.de",
+      "x": 513.2917,
+      "y": 71.2175,
+      "width": 55.970000000000006
+    },
+    {
+      "text": "",
+      "x": 21.7422,
+      "y": 52.9437,
+      "width": 0
+    },
+    {
+      "text": "VOLM 202",
+      "x": 21.7422,
+      "y": 52.9437,
+      "width": 22.234999999999996
+    },
+    {
+      "text": "205",
+      "x": 21.7422,
+      "y": 75.17869999999999,
+      "width": 7.735
+    },
+    {
+      "text": "",
+      "x": 42.7559,
+      "y": 792.9592,
+      "width": 0
+    },
+    {
+      "text": "Vollmacht für Vertriebspartner §34d GewO,",
+      "x": 42.7559,
+      "y": 792.9592,
+      "width": 375.326
+    },
+    {
+      "text": "zurück an die BIG",
+      "x": 42.7559,
+      "y": 770.9572000000001,
+      "width": 150.23299999999998
+    },
+    {
+      "text": "",
+      "x": 45.8543,
+      "y": 629.661,
+      "width": 0
+    },
+    {
+      "text": "Bitte füllen Sie die Felder in Druckbuchstaben aus.",
+      "x": 45.8543,
+      "y": 629.661,
+      "width": 141.128
+    },
+    {
+      "text": "",
+      "x": 42.5197,
+      "y": 60.8819,
+      "width": 0
+    },
+    {
+      "text": "BIG direkt gesund",
+      "x": 42.5197,
+      "y": 60.8819,
+      "width": 57.2397
+    },
+    {
+      "text": " ",
+      "x": 99.75939999999999,
+      "y": 60.8819,
+      "width": 0.2509000000000035
+    },
+    {
+      "text": "•",
+      "x": 101.51570000000001,
+      "y": 60.8819,
+      "width": 3.1430000000000002
+    },
+    {
+      "text": " ",
+      "x": 104.65870000000001,
+      "y": 60.8819,
+      "width": 0.23600000000000015
+    },
+    {
+      "text": "Rheinische Straße 1 • 44137 Dortmund",
+      "x": 106.31070000000001,
+      "y": 60.8819,
+      "width": 114.18190000000001
+    },
+    {
+      "text": "Fax 0231 5557-199 • info@big-direkt.de",
+      "x": 42.519700000000014,
+      "y": 52.880900000000004,
+      "width": 117.85900000000007
+    },
+    {
+      "text": "Kostenloser 24",
+      "x": 42.51970000000003,
+      "y": 44.879900000000006,
+      "width": 44.646699999999996
+    },
+    {
+      "text": " ",
+      "x": 87.16640000000001,
+      "y": 44.879900000000006,
+      "width": 0.11489999999999766
+    },
+    {
+      "text": "h-Direktservice",
+      "x": 87.9707,
+      "y": 44.8799,
+      "width": 46.945500000000024
+    },
+    {
+      "text": " ",
+      "x": 134.9162,
+      "y": 44.8799,
+      "width": 0.2335000000000004
+    },
+    {
+      "text": "0800 5456 5456",
+      "x": 136.5507,
+      "y": 44.8799,
+      "width": 49.77210000000009
+    },
+    {
+      "text": "",
+      "x": 42.5197,
+      "y": 28.8779,
+      "width": 0
+    },
+    {
+      "text": "Verantwortlicher i.",
+      "x": 42.5197,
+      "y": 28.8779,
+      "width": 57.778
+    },
+    {
+      "text": " ",
+      "x": 100.29769999999999,
+      "y": 28.8779,
+      "width": 0.11500000000000098
+    },
+    {
+      "text": "S. der DSGVO:",
+      "x": 101.1027,
+      "y": 28.8779,
+      "width": 43.25579999999997
+    },
+    {
+      "text": " ",
+      "x": 144.3585,
+      "y": 28.8779,
+      "width": 0.23600000000000218
+    },
+    {
+      "text": "Peter Kaetsch, Markus Bäumer",
+      "x": 146.0105,
+      "y": 28.8779,
+      "width": 92.449
+    },
+    {
+      "text": "",
+      "x": 42.5127,
+      "y": 20.8769,
+      "width": 0
+    },
+    {
+      "text": "Datenschutzbeauftragter:",
+      "x": 42.5127,
+      "y": 20.8769,
+      "width": 80.49719999999998
+    },
+    {
+      "text": " ",
+      "x": 123.00989999999994,
+      "y": 20.8769,
+      "width": 0.23540000000000866
+    },
+    {
+      "text": "datenschutz@big-direkt.de",
+      "x": 124.6577,
+      "y": 20.8769,
+      "width": 83.94190000000002
+    },
+    {
+      "text": "",
+      "x": 42.5197,
+      "y": 588.4312,
+      "width": 0
+    },
+    {
+      "text": "Name",
+      "x": 42.5197,
+      "y": 588.4312,
+      "width": 16.2825
+    },
+    {
+      "text": "Vorname",
+      "x": 42.5226,
+      "y": 565.5987,
+      "width": 25.3305
+    },
+    {
+      "text": "Geburtsdatum",
+      "x": 42.5219,
+      "y": 542.7632,
+      "width": 40.2675
+    },
+    {
+      "text": " ",
+      "x": 82.7894,
+      "y": 542.7632,
+      "width": 8.052000000000003
+    },
+    {
+      "text": "Versichertennummer",
+      "x": 135.12740000000002,
+      "y": 542.7632,
+      "width": 58.396000000000015
+    },
+    {
+      "text": "Name",
+      "x": 42.5197,
+      "y": 485.8713,
+      "width": 16.2825
+    },
+    {
+      "text": "Vorname",
+      "x": 42.5226,
+      "y": 463.0388,
+      "width": 25.3305
+    },
+    {
+      "text": "Firma",
+      "x": 42.5226,
+      "y": 440.2034,
+      "width": 15.327
+    },
+    {
+      "text": "",
+      "x": 45.3543,
+      "y": 617.6031,
+      "width": 0
+    },
+    {
+      "text": "Persönliche Angaben des Versicherten",
+      "x": 45.3543,
+      "y": 617.6031,
+      "width": 155.99699999999999
+    },
+    {
+      "text": "",
+      "x": 579.0974,
+      "y": 103.4183,
+      "width": 0
+    },
+    {
+      "text": "Datenschutzhinweis: Seit Mai 2018 gilt in der EU die neue Datenschutzgrundverordnung (DSGVO). Als gesetzliche Krankenkasse gehen wir mit Ihren Daten sensibel und sorgfältig um. In diesem Formular erfragen wir Ihre personenbezogenen Daten, um Ihr SEPA-",
+      "x": 579.0974,
+      "y": 103.4183,
+      "width": 554.7350000000009
+    },
+    {
+      "text": "Basislastschrift",
+      "x": 585.5974,
+      "y": 103.4183,
+      "width": 31.529999999999994
+    },
+    {
+      "text": "-",
+      "x": 585.5974,
+      "y": 134.94830000000002,
+      "width": 1.74
+    },
+    {
+      "text": "Mandat für wiederkehrende Zahlungen nach §",
+      "x": 585.5974,
+      "y": 136.68830000000003,
+      "width": 98.96500000000003
+    },
+    {
+      "text": " ",
+      "x": 585.5974,
+      "y": 235.65330000000003,
+      "width": 1.2199999999999989
+    },
+    {
+      "text": "76 Abs. 1",
+      "x": 585.5974,
+      "y": 236.87330000000003,
+      "width": 17.919999999999998
+    },
+    {
+      "text": " ",
+      "x": 585.5974,
+      "y": 254.79330000000004,
+      "width": 1.2200000000000273
+    },
+    {
+      "text": "SGB",
+      "x": 585.5974,
+      "y": 256.0133000000001,
+      "width": 8.825000000000001
+    },
+    {
+      "text": " ",
+      "x": 585.5974,
+      "y": 264.8383000000001,
+      "width": 1.2200000000000273
+    },
+    {
+      "text": "V",
+      "x": 585.5974,
+      "y": 266.05830000000014,
+      "width": 3.185
+    },
+    {
+      "text": " ",
+      "x": 585.5974,
+      "y": 269.24330000000015,
+      "width": 1.2200000000000273
+    },
+    {
+      "text": "zu bearbeiten. Ihre personenbezogenen Daten geben wir nur im Rahmen gesetzlicher Vorschriften an Dritte weiter. Ihre hier erhobenen Daten speichern wir für 6 Jahre und löschen sie dann.",
+      "x": 585.5974,
+      "y": 270.4633000000002,
+      "width": 402.8050000000008
+    },
+    {
+      "text": "",
+      "x": 311.814,
+      "y": 588.2845,
+      "width": 0
+    },
+    {
+      "text": "Straße",
+      "x": 311.814,
+      "y": 588.2845,
+      "width": 18.031
+    },
+    {
+      "text": " ",
+      "x": 329.845,
+      "y": 588.2845,
+      "width": 27.753
+    },
+    {
+      "text": "Hausnummer",
+      "x": 510.2395,
+      "y": 588.2845,
+      "width": 36.731500000000004
+    },
+    {
+      "text": "",
+      "x": 311.8107,
+      "y": 565.4491,
+      "width": 0
+    },
+    {
+      "text": "PLZ",
+      "x": 311.8107,
+      "y": 565.4491,
+      "width": 10.341500000000002
+    },
+    {
+      "text": " ",
+      "x": 322.15220000000005,
+      "y": 565.4491,
+      "width": 11.491999999999988
+    },
+    {
+      "text": "Ort",
+      "x": 396.8502,
+      "y": 565.4491,
+      "width": 9.0675
+    },
+    {
+      "text": "",
+      "x": 45.3543,
+      "y": 515.8718,
+      "width": 0
+    },
+    {
+      "text": "Persönliche Angaben des bevollmächtigten Vertriebspartners nach §34d GewO",
+      "x": 45.3543,
+      "y": 515.8718,
+      "width": 321.6005999999999
+    },
+    {
+      "text": "Bevollmächtigung",
+      "x": 45.3543,
+      "y": 413.312,
+      "width": 73.881
+    },
+    {
+      "text": "",
+      "x": 42.7559,
+      "y": 648.8819,
+      "width": 0
+    },
+    {
+      "text": "BIG direkt gesund, vertrieb@big-direkt.de",
+      "x": 42.7559,
+      "y": 648.8819,
+      "width": 118.44949999999997
+    },
+    {
+      "text": "",
+      "x": 42.521899999999995,
+      "y": 397.36439999999993,
+      "width": 0
+    },
+    {
+      "text": "Hiermit bevollmächtige ich die nachstehend genannte Person (nach vorheriger Rücksprache mit mir), Auskünfte bzw. Willenserklärungen zu bestehenden bzw. künftigen Sozialversicherungsver-",
+      "x": 42.521899999999995,
+      "y": 397.36439999999993,
+      "width": 522.7690000000002
+    },
+    {
+      "text": "trägen",
+      "x": 42.521899999999995,
+      "y": 390.86439999999993,
+      "width": 17.862000000000013
+    },
+    {
+      "text": " ",
+      "x": 60.383900000000004,
+      "y": 390.86439999999993,
+      "width": 0.10499999999999961
+    },
+    {
+      "text": "–",
+      "x": 61.0664,
+      "y": 390.8644,
+      "width": 3.5100000000000002
+    },
+    {
+      "text": " ",
+      "x": 64.5764,
+      "y": 390.8644,
+      "width": 0.10499999999999851
+    },
+    {
+      "text": "in Bezug auf die GKV",
+      "x": 65.2589,
+      "y": 390.8644,
+      "width": 56.92050000000002
+    },
+    {
+      "text": " ",
+      "x": 122.17940000000006,
+      "y": 390.8644,
+      "width": 0.10499999999999196
+    },
+    {
+      "text": "–",
+      "x": 122.8619,
+      "y": 390.8644,
+      "width": 3.5100000000000002
+    },
+    {
+      "text": " ",
+      "x": 126.37190000000001,
+      "y": 390.8644,
+      "width": 0.10499999999999851
+    },
+    {
+      "text": "einzuholen und abzugeben, insbesondere in meinem Namen solche Verträge abzuschließen, zu ändern, zu betreuen und zu kündigen. Leistungsauskünfte sind",
+      "x": 127.0544,
+      "y": 390.8644,
+      "width": 428.4735000000003
+    },
+    {
+      "text": "hiervon ausdrücklich ausgeschlossen. Diese Vollmacht kann fristlos schriftlich zurückgezogen werden.",
+      "x": 42.5219,
+      "y": 384.3644,
+      "width": 274.66400000000056
+    },
+    {
+      "text": "Zustellungen, Schriftwechsel und Rückfragen sind ausschließlich an meinen Vertriebspartner zu richten.",
+      "x": 53.9031,
+      "y": 366.8092,
+      "width": 276.2369999999996
+    },
+    {
+      "text": "",
+      "x": 42.5221,
+      "y": 338.2383,
+      "width": 0
+    },
+    {
+      "text": "Ort",
+      "x": 42.5221,
+      "y": 338.2383,
+      "width": 9.0675
+    },
+    {
+      "text": " ",
+      "x": 51.589600000000004,
+      "y": 338.2383,
+      "width": 24.758999999999997
+    },
+    {
+      "text": "Datum",
+      "x": 212.5231,
+      "y": 338.2383,
+      "width": 18.720000000000002
+    },
+    {
+      "text": " ",
+      "x": 231.24310000000003,
+      "y": 338.2383,
+      "width": 12.350999999999999
+    },
+    {
+      "text": "Unterschrift des Versicherten",
+      "x": 311.5246,
+      "y": 338.2383,
+      "width": 81.19150000000002
+    },
+    {
+      "text": "",
+      "x": 311.8107,
+      "y": 486.0561,
+      "width": 0
+    },
+    {
+      "text": "Vorwahl",
+      "x": 311.8107,
+      "y": 486.0561,
+      "width": 23.283
+    },
+    {
+      "text": " ",
+      "x": 335.0937,
+      "y": 486.0561,
+      "width": 9.494999999999996
+    },
+    {
+      "text": "Rufnummer",
+      "x": 396.8112,
+      "y": 486.0561,
+      "width": 32.3765
+    },
+    {
+      "text": "",
+      "x": 311.8107,
+      "y": 463.2207,
+      "width": 0
+    },
+    {
+      "text": "Straße",
+      "x": 311.8107,
+      "y": 463.2207,
+      "width": 18.031
+    },
+    {
+      "text": " ",
+      "x": 329.8417,
+      "y": 463.2207,
+      "width": 27.753
+    },
+    {
+      "text": "Hausnummer",
+      "x": 510.2362,
+      "y": 463.2207,
+      "width": 36.731500000000004
+    },
+    {
+      "text": "",
+      "x": 311.8107,
+      "y": 440.3853,
+      "width": 0
+    },
+    {
+      "text": "PLZ",
+      "x": 311.8107,
+      "y": 440.3853,
+      "width": 10.341500000000002
+    },
+    {
+      "text": " ",
+      "x": 322.15220000000005,
+      "y": 440.3853,
+      "width": 11.491999999999988
+    },
+    {
+      "text": "Ort",
+      "x": 396.8502,
+      "y": 440.3853,
+      "width": 9.0675
+    },
+    {
+      "text": "",
+      "x": 42.5197,
+      "y": 695.5794,
+      "width": 0
+    },
+    {
+      "text": "BIG direkt gesund",
+      "x": 42.5197,
+      "y": 695.5794,
+      "width": 73.77700000000002
+    },
+    {
+      "text": "",
+      "x": 42.5197,
+      "y": 684.9394,
+      "width": 0
+    },
+    {
+      "text": "Rheinische Straße 1",
+      "x": 42.5197,
+      "y": 684.9394,
+      "width": 77.38699999999999
+    },
+    {
+      "text": "44137 Dortmund",
+      "x": 42.5197,
+      "y": 674.2994,
+      "width": 65.9965
+    }
+  ],
+  "foundFields": [
+    {
+      "keyword": "Straße",
+      "fieldName": "Улица",
+      "labelX": 106.31070000000001,
+      "labelY": 60.8819,
+      "inputX": 256.3107,
+      "inputY": 60.8819
+    },
+    {
+      "keyword": "Name",
+      "fieldName": "Имя/Фамилия",
+      "labelX": 42.5197,
+      "labelY": 588.4312,
+      "inputX": 192.5197,
+      "inputY": 588.4312
+    },
+    {
+      "keyword": "Vorname",
+      "fieldName": "Имя",
+      "labelX": 42.5226,
+      "labelY": 565.5987,
+      "inputX": 192.5226,
+      "inputY": 565.5987
+    },
+    {
+      "keyword": "Geburtsdatum",
+      "fieldName": "Дата рождения",
+      "labelX": 42.5219,
+      "labelY": 542.7632,
+      "inputX": 192.52190000000002,
+      "inputY": 542.7632
+    },
+    {
+      "keyword": "Name",
+      "fieldName": "Имя/Фамилия",
+      "labelX": 42.5197,
+      "labelY": 485.8713,
+      "inputX": 192.5197,
+      "inputY": 485.8713
+    },
+    {
+      "keyword": "Vorname",
+      "fieldName": "Имя",
+      "labelX": 42.5226,
+      "labelY": 463.0388,
+      "inputX": 192.5226,
+      "inputY": 463.0388
+    },
+    {
+      "keyword": "Straße",
+      "fieldName": "Улица",
+      "labelX": 311.814,
+      "labelY": 588.2845,
+      "inputX": 461.814,
+      "inputY": 588.2845
+    },
+    {
+      "keyword": "Hausnummer",
+      "fieldName": "Номер дома",
+      "labelX": 510.2395,
+      "labelY": 588.2845,
+      "inputX": 660.2395,
+      "inputY": 588.2845
+    },
+    {
+      "keyword": "PLZ",
+      "fieldName": "Индекс",
+      "labelX": 311.8107,
+      "labelY": 565.4491,
+      "inputX": 461.8107,
+      "inputY": 565.4491
+    },
+    {
+      "keyword": "Ort",
+      "fieldName": "Город",
+      "labelX": 396.8502,
+      "labelY": 565.4491,
+      "inputX": 546.8502,
+      "inputY": 565.4491
+    },
+    {
+      "keyword": "Name",
+      "fieldName": "Имя/Фамилия",
+      "labelX": 127.0544,
+      "labelY": 390.8644,
+      "inputX": 277.0544,
+      "inputY": 390.8644
+    },
+    {
+      "keyword": "Ort",
+      "fieldName": "Город",
+      "labelX": 42.5221,
+      "labelY": 338.2383,
+      "inputX": 192.5221,
+      "inputY": 338.2383
+    },
+    {
+      "keyword": "Datum",
+      "fieldName": "Дата",
+      "labelX": 212.5231,
+      "labelY": 338.2383,
+      "inputX": 362.5231,
+      "inputY": 338.2383
+    },
+    {
+      "keyword": "Unterschrift",
+      "fieldName": "Подпись",
+      "labelX": 311.5246,
+      "labelY": 338.2383,
+      "inputX": 461.5246,
+      "inputY": 338.2383
+    },
+    {
+      "keyword": "Straße",
+      "fieldName": "Улица",
+      "labelX": 311.8107,
+      "labelY": 463.2207,
+      "inputX": 461.8107,
+      "inputY": 463.2207
+    },
+    {
+      "keyword": "Hausnummer",
+      "fieldName": "Номер дома",
+      "labelX": 510.2362,
+      "labelY": 463.2207,
+      "inputX": 660.2362,
+      "inputY": 463.2207
+    },
+    {
+      "keyword": "PLZ",
+      "fieldName": "Индекс",
+      "labelX": 311.8107,
+      "labelY": 440.3853,
+      "inputX": 461.8107,
+      "inputY": 440.3853
+    },
+    {
+      "keyword": "Ort",
+      "fieldName": "Город",
+      "labelX": 396.8502,
+      "labelY": 440.3853,
+      "inputX": 546.8502,
+      "inputY": 440.3853
+    },
+    {
+      "keyword": "Straße",
+      "fieldName": "Улица",
+      "labelX": 42.5197,
+      "labelY": 684.9394,
+      "inputX": 192.5197,
+      "inputY": 684.9394
+    }
+  ],
+  "recommendedCoordinates": {
+    "firstName": {
+      "x": 150,
+      "y": 721.89001
+    },
+    "lastName": {
+      "x": 300,
+      "y": 721.89001
+    },
+    "insuranceNumber": {
+      "x": 150,
+      "y": 661.89001
+    },
+    "street": {
+      "x": 150,
+      "y": 631.89001
+    },
+    "houseNumber": {
+      "x": 350,
+      "y": 631.89001
+    },
+    "zipCode": {
+      "x": 150,
+      "y": 601.89001
+    },
+    "city": {
+      "x": 250,
+      "y": 601.89001
+    },
+    "birthDate": {
+      "x": 200,
+      "y": 571.89001
+    },
+    "insuranceCompany": {
+      "x": 200,
+      "y": 541.89001
+    },
+    "date": {
+      "x": 150,
+      "y": 441.89000999999996
+    },
+    "signature": {
+      "x": 350,
+      "y": 441.89000999999996
+    }
+  }
+}

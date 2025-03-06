@@ -164,16 +164,7 @@ async function generatePdfFromData(formData, signatureData) {
       console.log(`Добавлена фамилия: ${lastName} (транслитерация: ${transliteratedLastName})`);
     }
     
-    // Номер страховки
-    if (insuranceNumber) {
-      firstPage.drawText(insuranceNumber, { 
-        ...textOptions, 
-        x: fieldCoordinates.insuranceNumber.x, 
-        y: fieldCoordinates.insuranceNumber.y 
-      });
-      console.log(`Добавлен номер страховки: ${insuranceNumber}`);
-    }
-    
+
     // Улица
     if (street) {
       firstPage.drawText(street, { 
@@ -214,16 +205,6 @@ async function generatePdfFromData(formData, signatureData) {
       console.log(`Добавлен город: ${city}`);
     }
     
-    // Страховая компания (с транслитерацией)
-    if (insuranceCompany) {
-      const transliteratedCompany = transliterate(insuranceCompany);
-      firstPage.drawText(transliteratedCompany, { 
-        ...textOptions, 
-        x: fieldCoordinates.insuranceCompany.x, 
-        y: fieldCoordinates.insuranceCompany.y 
-      });
-      console.log(`Добавлена страховая компания: ${insuranceCompany} (транслитерация: ${transliteratedCompany})`);
-    }
     
     // Дата рождения
     if (birthDate) {
