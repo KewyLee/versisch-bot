@@ -274,6 +274,40 @@ photoInput.addEventListener('change', function(e) {
 
 // Добавляем кнопку для открытия камеры на мобильных устройствах
 function enhancePhotoInput() {
+    // Проверяем, существует ли уже кнопка с id="cameraButton"
+    const existingButton = document.getElementById('cameraButton');
+    
+    // Если кнопка уже существует, просто добавляем к ней обработчик события
+    if (existingButton) {
+        existingButton.onclick = function() {
+            // Создаем временный input для камеры
+            const tempInput = document.createElement('input');
+            tempInput.type = 'file';
+            tempInput.accept = 'image/*';
+            tempInput.capture = 'environment'; // Использовать заднюю камеру
+            
+            // Обрабатываем выбор файла
+            tempInput.onchange = function(e) {
+                if (e.target.files && e.target.files[0]) {
+                    // Копируем файл в основной input
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(e.target.files[0]);
+                    photoInput.files = dataTransfer.files;
+                    
+                    // Вызываем событие change для обновления превью
+                    const event = new Event('change', { bubbles: true });
+                    photoInput.dispatchEvent(event);
+                }
+            };
+            
+            // Открываем диалог выбора файла
+            tempInput.click();
+        };
+        
+        return; // Выходим из функции, так как кнопка уже существует
+    }
+    
+    // Если кнопка не существует, создаем новую (старый код)
     // Создаем контейнер для кнопок
     const photoButtonsContainer = document.createElement('div');
     photoButtonsContainer.className = 'photo-buttons';
@@ -631,12 +665,17 @@ async function submitFormWithoutSignature() {
         const result = await response.json();
         
         if (result.success) {
-            // Закрываем Mini App с успешным результатом
+            // Показываем сообщение об успешной отправке
             tg.MainButton.setText('Готово!');
             tg.MainButton.enable();
-            tg.MainButton.onClick(() => {
-                tg.close();
-            });
+            
+            // Добавляем задержку перед закрытием, чтобы пользователь увидел сообщение
+            setTimeout(() => {
+                tg.MainButton.onClick(() => {
+                    tg.close();
+                });
+                tg.MainButton.setText('Закрыть');
+            }, 2000);
         } else {
             alert('Произошла ошибка при отправке данных: ' + result.message);
             tg.MainButton.hide();

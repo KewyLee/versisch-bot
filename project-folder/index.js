@@ -227,6 +227,10 @@ app.post('/api/submit-form', async (req, res) => {
     req.setTimeout(60000); // 60 секунд
     res.setTimeout(60000); // 60 секунд
     
+    // Отправляем успешный ответ клиенту сразу, чтобы избежать ошибки H13
+    res.json({ success: true, message: 'Данные получены и обрабатываются' });
+    
+    // Продолжаем обработку данных после отправки ответа
     let pdfPath = null;
     let photoPath = null;
     
@@ -259,9 +263,7 @@ app.post('/api/submit-form', async (req, res) => {
       console.log('Отправка данных администратору...');
       await sendDataToAdmin(formData, pdfPath, photoPath);
       
-      // Отправляем успешный ответ
       console.log('Данные успешно сохранены и отправлены');
-      return res.json({ success: true, message: 'Данные успешно сохранены и отправлены' });
       
     } catch (error) {
       console.error('Ошибка при обработке данных формы:', error);
@@ -279,8 +281,6 @@ app.post('/api/submit-form', async (req, res) => {
       } catch (cleanupError) {
         console.error('Ошибка при очистке временных файлов:', cleanupError);
       }
-      
-      throw error; // Пробрасываем ошибку дальше для общей обработки
     }
     
   } catch (error) {
