@@ -2,10 +2,61 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Форма заявки</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Стили для мобильных устройств */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+                max-width: 100%;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+            
+            input, select {
+                font-size: 16px; /* Предотвращает масштабирование на iOS */
+                padding: 10px;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .photo-buttons {
+                display: flex;
+                margin-top: 10px;
+            }
+            
+            .camera-button {
+                flex: 1;
+                padding: 10px;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            
+            .signature-area {
+                border: 1px solid #ccc;
+                margin-top: 10px;
+            }
+            
+            #signatureCanvas {
+                width: 100%;
+                height: 150px;
+                touch-action: none;
+            }
+            
+            .preview img {
+                max-width: 100%;
+                height: auto;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -80,7 +131,10 @@
             
             <div class="form-group">
                 <label for="photo">Фотография у стены*</label>
-                <input type="file" id="photo" name="photo" accept="image/*" required>
+                <input type="file" id="photo" name="photo" accept="image/*" capture="environment" required>
+                <div class="photo-buttons">
+                    <button type="button" class="camera-button" id="cameraButton">Сделать фото</button>
+                </div>
                 <div class="preview" id="photoPreview"></div>
             </div>
             

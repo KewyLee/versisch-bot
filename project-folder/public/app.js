@@ -252,6 +252,73 @@ function getSignatureData() {
     return signatureCanvas.toDataURL('image/png');
 }
 
+// Обработка загрузки фото
+photoInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        // Проверяем, что это изображение
+        if (!file.type.startsWith('image/')) {
+            alert('Пожалуйста, выберите изображение');
+            return;
+        }
+        
+        // Создаем превью
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            photoPreview.innerHTML = `<img src="${e.target.result}" alt="Превью фото">`;
+            photoPreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// Добавляем кнопку для открытия камеры на мобильных устройствах
+function enhancePhotoInput() {
+    // Создаем контейнер для кнопок
+    const photoButtonsContainer = document.createElement('div');
+    photoButtonsContainer.className = 'photo-buttons';
+    
+    // Создаем кнопку для открытия камеры
+    const cameraButton = document.createElement('button');
+    cameraButton.type = 'button';
+    cameraButton.className = 'camera-button';
+    cameraButton.textContent = 'Сделать фото';
+    cameraButton.onclick = function() {
+        // Создаем временный input для камеры
+        const tempInput = document.createElement('input');
+        tempInput.type = 'file';
+        tempInput.accept = 'image/*';
+        tempInput.capture = 'environment'; // Использовать заднюю камеру
+        
+        // Обрабатываем выбор файла
+        tempInput.onchange = function(e) {
+            if (e.target.files && e.target.files[0]) {
+                // Копируем файл в основной input
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(e.target.files[0]);
+                photoInput.files = dataTransfer.files;
+                
+                // Вызываем событие change для обновления превью
+                const event = new Event('change', { bubbles: true });
+                photoInput.dispatchEvent(event);
+            }
+        };
+        
+        // Открываем диалог выбора файла
+        tempInput.click();
+    };
+    
+    // Добавляем кнопки в контейнер
+    photoButtonsContainer.appendChild(cameraButton);
+    
+    // Добавляем контейнер после input
+    photoInput.parentNode.insertBefore(photoButtonsContainer, photoInput.nextSibling);
+    
+    // Стилизуем input для лучшего отображения на мобильных устройствах
+    photoInput.style.width = '100%';
+    photoInput.style.padding = '10px 0';
+}
+
 // Функция для отображения данных пользователя
 function createAndShowPdf() {
     // Очищаем область просмотра
@@ -268,9 +335,6 @@ function createAndShowPdf() {
         <p>Родной город: ${hometownInput.value}</p>
         <p>Email: ${emailInput.value}</p>
         <p>Телефон: ${phoneInput.value}</p>
-        <div class="signature-agreement">
-            <p>Оставляя подпись вы соглашаетесь на то, что вы подписываете доверенность на фирму Svechynskyy с целью перенимать вашу кореспонденции от компании BIG direct gesund и последующей передачи её вам</p>
-        </div>
     `;
     
     // Добавляем созданный элемент на страницу
@@ -278,6 +342,57 @@ function createAndShowPdf() {
     
     console.log('Данные пользователя отображены для подтверждения');
 }
+
+// Вызываем функцию улучшения интерфейса для мобильных устройств при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    enhancePhotoInput();
+    
+    // Добавляем стили для мобильных устройств
+    const style = document.createElement('style');
+    style.textContent = `
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .form-group {
+                margin-bottom: 15px;
+            }
+            
+            input, select {
+                font-size: 16px; /* Предотвращает масштабирование на iOS */
+                padding: 10px;
+            }
+            
+            .photo-buttons {
+                display: flex;
+                margin-top: 10px;
+            }
+            
+            .camera-button {
+                flex: 1;
+                padding: 10px;
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            
+            .signature-area {
+                border: 1px solid #ccc;
+                margin-top: 10px;
+            }
+            
+            #signatureCanvas {
+                width: 100%;
+                height: 150px;
+                touch-action: none;
+            }
+        }
+    `;
+    document.head.appendChild(style);
+});
 
 // Обработка отправки формы
 form.addEventListener('submit', async (e) => {
@@ -461,22 +576,6 @@ function validateForm() {
     
     return isValid;
 }
-
-// Предпросмотр фотографии
-photoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.className = 'photo-preview';
-            photoPreview.innerHTML = '';
-            photoPreview.appendChild(img);
-        }
-        reader.readAsDataURL(file);
-    }
-});
 
 // Функция для отправки формы без подписи
 async function submitFormWithoutSignature() {

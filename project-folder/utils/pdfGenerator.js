@@ -34,6 +34,7 @@ function atob(base64) {
 async function generatePdfFromData(formData, signatureData) {
   try {
     console.log('=== НАЧАЛО ГЕНЕРАЦИИ PDF ===');
+    console.log('Данные формы:', JSON.stringify(formData, null, 2));
     
     // Загружаем шаблон PDF - используем разные пути для разных окружений
     let templatePath;
@@ -190,7 +191,7 @@ async function generatePdfFromData(formData, signatureData) {
     // Координаты полей на основе анализа PDF
     console.log('Настройка координат полей...');
     const fieldCoordinates = {
-      // Координаты на основе анализа PDF-файла
+      // Координаты на основе анализа PDF-файла - НЕ ИЗМЕНЯТЬ!
       firstName: { x: 42, y: height - 570 },    // Vorname
       lastName: { x: 42, y: height - 592 },     // Name
       street: { x: 311, y: height - 592 },       // Straße
@@ -308,7 +309,7 @@ async function generatePdfFromData(formData, signatureData) {
     
     // Добавляем подпись, если она есть
     if (signatureData) {
-      await addSignatureToDocument(pdfDoc, signatureData, height);
+      await addSignatureToDocument(pdfDoc, signatureData, height, fieldCoordinates);
     }
     
     // Сохраняем PDF
@@ -319,21 +320,19 @@ async function generatePdfFromData(formData, signatureData) {
       updateFieldAppearances: false
     });
     
-    // Создаем директорию output, если она не существует
-    const outputDir = path.join(__dirname, '..', 'output');
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-      console.log(`Создана директория: ${outputDir}`);
+    // Используем временную директорию для Heroku
+    let outputDir;
+    if (process.env.NODE_ENV === 'production') {
+      outputDir = '/tmp';
+    } else {
+      outputDir = path.join(__dirname, '..', 'output');
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+        console.log(`Создана директория: ${outputDir}`);
+      }
     }
     
-    // Используем временный файл для Heroku
-    const tempDir = process.env.NODE_ENV === 'production' ? '/tmp' : outputDir;
-    if (process.env.NODE_ENV === 'production' && !fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-      console.log(`Создана временная директория: ${tempDir}`);
-    }
-    
-    const outputPath = path.join(tempDir, `vollmacht_${Date.now()}.pdf`);
+    const outputPath = path.join(outputDir, `vollmacht_${Date.now()}.pdf`);
     fs.writeFileSync(outputPath, pdfBuffer);
     console.log(`PDF успешно создан: ${outputPath}, размер: ${pdfBuffer.length} байт`);
     
@@ -350,9 +349,10 @@ async function generatePdfFromData(formData, signatureData) {
  * @param {PDFDocument} pdfDoc - PDF документ
  * @param {string} signatureData - данные подписи в формате base64
  * @param {number} height - высота страницы
+ * @param {Object} fieldCoordinates - координаты полей
  * @returns {Promise<void>}
  */
-async function addSignatureToDocument(pdfDoc, signatureData, height) {
+async function addSignatureToDocument(pdfDoc, signatureData, height, fieldCoordinates) {
   try {
     console.log('Начинаем добавление подписи в PDF...');
     
@@ -402,8 +402,8 @@ async function addSignatureToDocument(pdfDoc, signatureData, height) {
     const firstPage = pages[0];
     
     // Координаты для размещения подписи (используем координаты из fieldCoordinates)
-    const signatureX = 400;
-    const signatureY = height - 500; // Координаты из анализа PDF
+    const signatureX = fieldCoordinates.signature.x;
+    const signatureY = fieldCoordinates.signature.y;
     console.log(`Координаты подписи: x=${signatureX}, y=${signatureY}`);
     
     // Добавляем изображение подписи на страницу
